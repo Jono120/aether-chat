@@ -1,10 +1,13 @@
 {
   "name": "optimistic-pasteur",
+  "description": "Aether — Secure E2EE Dating Grid (Local Prototype): client-only React demo with simulated E2EE chat, privacy center, and EXIF tooling.",
   "private": true,
   "version": "0.0.0",
   "type": "module",
   "scripts": {
+    "start": "node scripts/start-dev.mjs",
     "dev": "vite",
+    "dev:open": "vite --open",
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview"

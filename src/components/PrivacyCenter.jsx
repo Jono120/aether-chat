@@ -20,11 +20,12 @@ export default function PrivacyCenter({
   setStealthMode, 
   onPanicTrigger, 
   currentUser, 
-  generateNewKeys 
+  generateNewKeys,
+  albumScreenshotShield,
+  setAlbumScreenshotShield,
 }) {
   const [fuzzingStrategy, setFuzzingStrategy] = useState('grid_snap');
   const [pinLockEnabled, setPinLockEnabled] = useState(false);
-  const [albumScreenshotShield, setAlbumScreenshotShield] = useState(true);
 
   // Deletion grace states
   const [isDeleting, setIsDeleting] = useState(false);

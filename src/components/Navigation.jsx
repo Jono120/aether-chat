@@ -25,8 +25,8 @@ export default function Navigation({
 
   const tabs = [
     { id: 'grid', label: 'Discovery Grid' },
-    { id: 'chat', label: 'Encrypted Chats' },
-    { id: 'privacy', label: 'Privacy Center' }
+    { id: 'chat', label: 'Messages' },
+    { id: 'privacy', label: 'Settings' }
   ];
 
   const handlePanicClick = () => {
@@ -76,7 +76,7 @@ export default function Navigation({
             <div className="status-badge-container">
               <span className={`status-indicator ${stealthMode ? 'status-offline' : 'status-online'}`} />
               <span className="status-badge-text">
-                {stealthMode ? 'Hidden' : 'Broadcasting'}
+                {stealthMode ? 'Offline' : 'Online'}
               </span>
             </div>
 

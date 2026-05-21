@@ -5,7 +5,6 @@ import {
 } from 'lucide-react';
 import { 
   encryptMessage, decryptMessage, 
-  generateKeyPair, generateGroupKey, 
   encryptGroupMessage, decryptGroupMessage 
 } from '../utils/crypto';
 import { inspectImageMetadata, stripImageMetadata } from '../utils/exif';
@@ -22,11 +21,19 @@ import { inspectImageMetadata, stripImageMetadata } from '../utils/exif';
  * - wire-inspector / wire-packet-box
  * - exif-panel / exif-meta-fields / custom-range
  */
+const SEED_GROUP_KEY = {
+  keyId: 'GRP-KID-105',
+  keyVal: 'AETH-GRP-CITY-7A3F9E2B1C4D8E6F0A5B9C2D7E1F4A8B0C3D6E9F2A5B8C1D4E7F0A3B6C9D2E5F8',
+  version: 105,
+  rotatedAt: new Date().toISOString(),
+};
+
 export default function ChatRoom({ 
   currentUser, 
   activeChatProfile, 
   setActiveChatProfile, 
-  startWithAlbum = false 
+  startWithAlbum = false,
+  albumScreenshotShield = true,
 }) {
   // Navigation / View states
   const [selectedChat, setSelectedChat] = useState(null);
@@ -47,6 +54,7 @@ export default function ChatRoom({
   // Screen shield defocus simulator state
   const [isWindowFocused, setIsWindowFocused] = useState(true);
   const [forceShield, setForceShield] = useState(false);
+  const [groupKey] = useState(() => ({ ...SEED_GROUP_KEY }));
 
   // Local Chat Database (Simulated client device database)
   const [conversations, setConversations] = useState({
@@ -191,7 +199,6 @@ export default function ChatRoom({
     }
 
     if (selectedChat.isGroup) {
-      const groupKey = generateGroupKey('group_city');
       const packet = encryptGroupMessage(inputText, groupKey);
       
       newMsg.keyId = groupKey.keyId;
@@ -376,7 +383,7 @@ export default function ChatRoom({
   };
 
   const activeMessages = conversations[selectedChat?.id] || [];
-  const isShieldActive = !isWindowFocused || forceShield;
+  const isShieldActive = albumScreenshotShield && (!isWindowFocused || forceShield);
 
   return (
     <div className="chat-layout">

@@ -9,6 +9,7 @@ export default function App() {
   // Navigation & visibility tab states
   const [currentTab, setCurrentTab] = useState('grid');
   const [stealthMode, setStealthMode] = useState(false);
+  const [albumScreenshotShield, setAlbumScreenshotShield] = useState(true);
 
   // Active chat profile states (used when routing from profile detail -> E2EE chat room)
   const [activeChatProfile, setActiveChatProfile] = useState(null);
@@ -180,10 +181,12 @@ export default function App() {
         
         {currentTab === 'chat' && (
           <ChatRoom 
+            key={currentUser.keys.fingerprint}
             currentUser={currentUser} 
             activeChatProfile={activeChatProfile}
             setActiveChatProfile={setActiveChatProfile}
             startWithAlbum={startWithAlbum}
+            albumScreenshotShield={albumScreenshotShield}
           />
         )}
         
@@ -194,6 +197,8 @@ export default function App() {
             onPanicTrigger={handlePanicTrigger}
             currentUser={currentUser}
             generateNewKeys={handleRotateKeys}
+            albumScreenshotShield={albumScreenshotShield}
+            setAlbumScreenshotShield={setAlbumScreenshotShield}
           />
         )}
       </main>

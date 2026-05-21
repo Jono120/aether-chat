@@ -80,9 +80,9 @@ export default function Grid({ stealthMode, onSelectChat, profiles }) {
           </div>
           <div className="warning-banner-text">
             <strong style={{ color: '#ffffff', display: 'block', fontSize: '0.8rem', marginBottom: '0.15rem' }}>
-              Stealth Mode Active
+              Offline Mode
             </strong>
-            Your profile is currently hidden from the discovery grid. Nearby users cannot discover you, view your distance, or request encryption handshakes. Toggle this off in the status header to reappear.
+            You're hidden right now — other people nearby won't see your profile or how far away you are. Turn visibility back on in the header when you want to show up again.
           </div>
         </div>
       )}
@@ -92,17 +92,39 @@ export default function Grid({ stealthMode, onSelectChat, profiles }) {
         <div>
           <h2 className="grid-section-title">Nearby Profiles</h2>
           <p className="grid-section-desc">
-            Distance metrics are coarsened server-side using secure snap-grid offsets.
+            Distances are approximate — we don't show anyone's exact location.
           </p>
         </div>
         <div>
-          <span className="metadata-badge badge-success" style={{ padding: '0.25rem 0.5rem' }}>
-            {profiles.length} Online Nearby
+          <span
+            className={`metadata-badge ${stealthMode ? '' : 'badge-success'}`}
+            style={{
+              padding: '0.25rem 0.5rem',
+              ...(stealthMode ? { background: 'rgba(244,63,94,0.1)', color: '#f43f5e', border: '1px solid rgba(244,63,94,0.2)' } : {}),
+            }}
+          >
+            {stealthMode ? 'Hidden from discovery' : `${profiles.length} Online Nearby`}
           </span>
         </div>
       </div>
 
       {/* Profiles Discovery Grid */}
+      {stealthMode ? (
+        <div
+          className="discovery-grid"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            minHeight: '12rem',
+            gridTemplateColumns: 'unset',
+          }}
+        >
+          <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', textAlign: 'center', maxWidth: '24rem', margin: 0 }}>
+            Discovery is paused while offline. Toggle visibility in the header to browse nearby profiles again.
+          </p>
+        </div>
+      ) : (
       <div className="discovery-grid">
         {profiles.map((profile) => (
           <div 
@@ -133,6 +155,7 @@ export default function Grid({ stealthMode, onSelectChat, profiles }) {
           </div>
         ))}
       </div>
+      )}
 
       {/* --- Profile Detailed Modal --- */}
       {selectedProfile && (
@@ -177,13 +200,13 @@ export default function Grid({ stealthMode, onSelectChat, profiles }) {
                   <span style={{ color: '#ffffff' }}>{selectedProfile.fuzzedDistance}</span>
                 </div>
                 <p className="modal-distance-desc">
-                  This user's distance is snapping-fuzzed to a 1km coordinate block. Accurate GPS lines are blocked by device client scripts.
+                  You only see a rough distance band — not their exact location. We round location on our side so nobody can pin down where they are.
                 </p>
               </div>
 
               {/* Bio block */}
               <div className="modal-bio-section">
-                <div className="modal-label">Biography</div>
+                <div className="modal-label">Bio</div>
                 <p className="modal-bio-text">
                   {selectedProfile.bio}
                 </p>
@@ -207,7 +230,7 @@ export default function Grid({ stealthMode, onSelectChat, profiles }) {
                   }}
                   className="btn btn-primary modal-btn"
                 >
-                  <MessageSquare className="h-4 w-4" /> Secure Chat
+                  <MessageSquare className="h-4 w-4" /> Message
                 </button>
                 {selectedProfile.hasSecureAlbum && (
                   <button
@@ -217,7 +240,7 @@ export default function Grid({ stealthMode, onSelectChat, profiles }) {
                     }}
                     className="btn btn-secure modal-btn"
                   >
-                    <Image className="h-4 w-4" /> Secure Album
+                    <Image className="h-4 w-4" /> Album
                   </button>
                 )}
               </div>
