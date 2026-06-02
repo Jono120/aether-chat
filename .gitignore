@@ -8,9 +8,15 @@ pnpm-debug.log*
 lerna-debug.log*
 
 node_modules
+api/node_modules
+api/dist
 dist
+.env
+api/.env
 dist-ssr
 *.local
+infra/backend.hcl
+.terraform/
 
 # Editor directories and files
 .vscode/*

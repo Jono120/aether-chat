@@ -2,7 +2,7 @@
  * Aether EXIF Metadata Stripper & Inspector
  * 
  * This utility operates on raw files client-side. It:
- * 1. Analyzes JPEG binaries to inspect EXIF metadata segments.
+ * 1. Analyses JPEG binaries to inspect EXIF metadata segments.
  * 2. Physically removes the APP1 (0xFFE1) segment where EXIF, GPS, 
  *    and camera manufacturer details are stored, creating a clean image blob.
  */

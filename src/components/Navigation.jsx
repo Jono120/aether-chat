@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Shield, Eye, EyeOff, Flame, Menu, X } from 'lucide-react';
+import useFocusTrap from '../hooks/useFocusTrap';
 
 /**
  * Navigation Component
- * 
+ *
  * Uses semantic CSS classes mapped directly to index.css:
  * - aether-header / header-container
  * - brand-logo / logo-icon / logo-title
@@ -13,25 +14,33 @@ import { Shield, Eye, EyeOff, Flame, Menu, X } from 'lucide-react';
  * - mobile-drawer
  * - modal-backdrop / modal-content
  */
-export default function Navigation({ 
-  currentTab, 
-  setCurrentTab, 
-  stealthMode, 
-  setStealthMode, 
-  onPanicTrigger 
+export default function Navigation({
+  currentTab,
+  setCurrentTab,
+  stealthMode,
+  setStealthMode,
+  onPanicTrigger,
 }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [showPanicConfirm, setShowPanicConfirm] = useState(false);
+  const panicModalRef = useFocusTrap(showPanicConfirm);
 
   const tabs = [
     { id: 'grid', label: 'Discovery Grid' },
     { id: 'chat', label: 'Messages' },
-    { id: 'privacy', label: 'Settings' }
+    { id: 'privacy', label: 'Settings' },
   ];
 
-  const handlePanicClick = () => {
-    setShowPanicConfirm(true);
-  };
+  useEffect(() => {
+    if (!showPanicConfirm) return undefined;
+
+    const handleEscape = (e) => {
+      if (e.key === 'Escape') setShowPanicConfirm(false);
+    };
+
+    document.addEventListener('keydown', handleEscape);
+    return () => document.removeEventListener('keydown', handleEscape);
+  }, [showPanicConfirm]);
 
   const executePanic = () => {
     setShowPanicConfirm(false);
@@ -42,21 +51,14 @@ export default function Navigation({
     <>
       <header className="aether-header">
         <div className="header-container">
-          
-          {/* Brand Logo Group */}
           <div className="brand-logo" onClick={() => { setCurrentTab('grid'); setMobileMenuOpen(false); }}>
             <div className="logo-icon">
-              <Shield className="h-5 w-5 text-white" />
+              <Shield className="icon-md icon-white" />
             </div>
-            <span className="logo-title">
-              AETHER
-            </span>
-            <span className="logo-badge">
-              E2EE v1.0
-            </span>
+            <span className="logo-title">AETHER</span>
+            <span className="logo-badge">E2EE v1.0</span>
           </div>
 
-          {/* Desktop Navigation Links */}
           <nav className="nav-tabs">
             {tabs.map((tab) => (
               <button
@@ -69,10 +71,7 @@ export default function Navigation({
             ))}
           </nav>
 
-          {/* Quick Settings & Security Action Indicators */}
           <div className="header-controls">
-            
-            {/* Presence Broadcast Status */}
             <div className="status-badge-container">
               <span className={`status-indicator ${stealthMode ? 'status-offline' : 'status-online'}`} />
               <span className="status-badge-text">
@@ -80,39 +79,33 @@ export default function Navigation({
               </span>
             </div>
 
-            {/* Stealth Invisibility Toggle */}
             <button
               onClick={() => setStealthMode(!stealthMode)}
-              title={stealthMode ? "Disable Invisible Mode (Show on discovery grid)" : "Enable Invisible Mode (Hide from discovery grid)"}
+              title={stealthMode ? 'Offline Mode' : 'Online Mode'}
               className={`icon-btn-ctrl ${
-                stealthMode 
-                  ? 'icon-btn-ctrl-active'
-                  : 'icon-btn-ctrl-online'
+                stealthMode ? 'icon-btn-ctrl-active' : 'icon-btn-ctrl-online'
               }`}
             >
-              {stealthMode ? <EyeOff className="h-4.5 w-4.5" /> : <Eye className="h-4.5 w-4.5" />}
+              {stealthMode ? <EyeOff className="icon-md" /> : <Eye className="icon-md" />}
             </button>
 
-            {/* Red Alert Panic Wipe Button */}
             <button
-              onClick={handlePanicClick}
-              title="Panic: Trigger Account Erasure & Clear Cache"
+              onClick={() => setShowPanicConfirm(true)}
+              title="Panic Mode: Account Deletion"
               className="icon-btn-ctrl panic-trigger-btn"
             >
-              <Flame className="h-4.5 w-4.5" />
+              <Flame className="icon-md" />
             </button>
 
-            {/* Mobile Menu Drawer Toggle */}
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
               className="icon-btn-ctrl mobile-menu-btn"
             >
-              {mobileMenuOpen ? <X className="h-4.5 w-4.5" /> : <Menu className="h-4.5 w-4.5" />}
+              {mobileMenuOpen ? <X className="icon-md" /> : <Menu className="icon-md" />}
             </button>
           </div>
         </div>
 
-        {/* Mobile Dropdown Menu Drawer */}
         {mobileMenuOpen && (
           <div className="mobile-drawer">
             {tabs.map((tab) => (
@@ -129,11 +122,7 @@ export default function Navigation({
             ))}
             <div className="mobile-drawer-status">
               <span className="status-badge-text">Grid Presence:</span>
-              <span className={`metadata-badge ${
-                stealthMode 
-                  ? 'badge-warning' 
-                  : 'badge-success'
-              }`}>
+              <span className={`metadata-badge ${stealthMode ? 'badge-warning' : 'badge-success'}`}>
                 {stealthMode ? 'Hidden' : 'Active (Fuzzed)'}
               </span>
             </div>
@@ -141,36 +130,40 @@ export default function Navigation({
         )}
       </header>
 
-      {/* --- Panic Action Warning Modal --- */}
       {showPanicConfirm && (
-        <div className="modal-backdrop">
-          <div className="modal-content">
-            <div className="modal-body" style={{ textAlign: 'center', padding: '2rem 1.5rem' }}>
-              <div className="logo-icon" style={{ margin: '0 auto 1rem auto', width: '3rem', height: '3rem', borderRadius: '50%', background: 'rgba(244,63,94,0.1)', color: '#f43f5e' }}>
-                <Flame className="h-6 w-6" />
+        <div className="modal-backdrop" onClick={() => setShowPanicConfirm(false)}>
+          <div
+            ref={panicModalRef}
+            className="modal-content"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="panic-modal-title"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="modal-body modal-body--centered">
+              <div className="modal-icon-wrap">
+                <Flame className="icon-lg" />
               </div>
-              
-              <h3 className="modal-title" style={{ marginBottom: '0.5rem' }}>
+
+              <h3 id="panic-modal-title" className="modal-title modal-title--spaced">
                 Confirm Safety Wipe?
               </h3>
-              
-              <p className="modal-subtitle" style={{ fontSize: '0.8rem', lineHeight: '1.4', marginBottom: '1.5rem', textTransform: 'none' }}>
-                This will instantly clear all local E2EE keys, photo caches, and message logs from this device. 
+
+              <p className="modal-subtitle modal-subtitle--body">
+                This will instantly clear all local E2EE keys, photo caches, and message logs from this device.
                 Your profile will also be marked for permanent database deletion with a 30-day grace period.
               </p>
-              
-              <div className="modal-actions" style={{ flexDirection: 'column' }}>
+
+              <div className="modal-actions modal-actions--stacked">
                 <button
                   onClick={executePanic}
                   className="btn btn-danger modal-btn"
-                  style={{ width: '100%' }}
                 >
                   Wipe Device & Hide Profile
                 </button>
                 <button
                   onClick={() => setShowPanicConfirm(false)}
                   className="btn btn-secondary modal-btn"
-                  style={{ width: '100%', marginTop: '0.25rem' }}
                 >
                   Cancel
                 </button>

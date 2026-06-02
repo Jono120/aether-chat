@@ -1,8 +1,8 @@
 # Aether — Secure E2EE Dating Grid (Local Prototype)
 
-**Aether** is a client-only React + Vite prototype: a discovery grid, simulated end-to-end encrypted chat, and a privacy center for keys, EXIF tooling, and local safety controls. Everything runs in the browser with mock data.
+**Aether** is a React + Vite app: discovery grid, Web Crypto E2EE chat, and a privacy centre for keys, EXIF tooling, and safety controls. Runs **standalone** (mock data) or against the optional **`api/`** service and Azure backend ([docs/BACKEND.md](docs/BACKEND.md)).
 
-> **Prototype disclaimer** — There is **no backend**, **no real E2EE**, and **no live location**. Profiles and threads are mocked; cryptography labels are cosmetic. Use for UX and security **concept demos only**. See [docs/SECURITY.md](docs/SECURITY.md) before treating any control as production-grade.
+> **Disclaimer** — Not production-hardened. Real X25519/AES-GCM on the client; server stores **ciphertext and public keys only**. No raw GPS. See [docs/SECURITY.md](docs/SECURITY.md).
 
 Clone path / npm package name: `optimistic-pasteur`.
 
@@ -18,7 +18,7 @@ Fuzzed distance bands, generative avatars, stealth/invisible banner, profile det
 
 1:1 and group threads, wire inspector, self-destruct timers, secure ephemeral album with focus blur shield, EXIF inspect/strip on JPEGs. See [`src/components/ChatRoom.jsx`](src/components/ChatRoom.jsx).
 
-### Privacy Center
+### Privacy Centre
 
 Key ring display and rotation, location fuzzing strategy radios (UI-only), PIN/album shield toggles (UI-only), panic wipe, 30-day account deletion grace. Header tab: **Privacy Center**; bottom nav: **Security**. See [`src/components/PrivacyCenter.jsx`](src/components/PrivacyCenter.jsx).
 
@@ -50,9 +50,9 @@ npm run preview    # serve production build
 ## Demo walkthrough
 
 1. Open **Grid** → select a profile → **Message** to open chat.
-2. Send a message → open **Wire Inspector** to view the simulated packet.
+2. Send a message → open **Wire Inspector** to view the ciphertext envelope.
 3. Try a self-destruct timer or upload a JPEG in the EXIF panel and strip metadata.
-4. Open **Security** (Privacy Center) → inspect key ring → **Rotate Keys**.
+4. Open **Security** (Privacy Centre) → inspect key ring → **Rotate Keys**.
 5. Use header **Panic** or device wipe to clear local keys and return to Grid.
 
 Full script: [docs/FEATURES.md](docs/FEATURES.md).
@@ -62,20 +62,15 @@ Full script: [docs/FEATURES.md](docs/FEATURES.md).
 ## Project structure
 
 ```text
+api/                     # TypeScript REST API (optional)
+infra/                   # Terraform — SWA + backend modules
 src/
 ├── App.jsx              # Tabs, profiles, keys, panic wipe
-├── main.jsx
-├── index.css            # Semantic styling
-├── components/
-│   ├── Navigation.jsx
-│   ├── Grid.jsx
-│   ├── ChatRoom.jsx
-│   └── PrivacyCenter.jsx
-└── utils/
-    ├── crypto.js        # E2EE simulator
-    └── exif.js          # JPEG EXIF tools
-docs/                    # SECURITY, ARCHITECTURE, FEATURES, DEVELOPMENT, DESIGN
-scripts/start-dev.mjs    # npm start launcher (install + vite --open)
+├── api/client.js        # Backend client when VITE_API_URL set
+├── utils/crypto.js      # Web Crypto E2EE
+└── components/          # Grid, ChatRoom, PrivacyCenter, …
+docs/                    # BACKEND, DATA_MODEL, SECURITY, …
+scripts/start-dev.mjs    # npm start launcher
 ```
 
 ---
@@ -92,12 +87,16 @@ No server runtime dependencies.
 
 ## Documentation
 
+Full index: [docs/README.md](docs/README.md).
+
 | Document | Description |
 |----------|-------------|
-| [docs/SECURITY.md](docs/SECURITY.md) | Prototype scope, simulated vs real behavior, `localStorage`, threat model |
+| [docs/project-summary.md](docs/project-summary.md) | Executive summary, architecture overview, code map |
+| [docs/SECURITY.md](docs/SECURITY.md) | Prototype scope, simulated vs real behaviour, `localStorage`, threat model |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Components, state, flows, crypto path, CSS conventions |
-| [docs/FEATURES.md](docs/FEATURES.md) | Feature catalog and 5-minute demo script |
+| [docs/FEATURES.md](docs/FEATURES.md) | Feature catalogue and 5-minute demo script |
 | [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) | Scripts, layout, conventions, extending mocks |
+| [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) | Azure SWA hosting, Terraform, GitHub Actions |
 | [docs/DESIGN.md](docs/DESIGN.md) | Design criteria, plan vs built, screenshot policy |
 
 Optional screenshots: `docs/images/` (see FEATURES.md).
@@ -106,4 +105,4 @@ Optional screenshots: `docs/images/` (see FEATURES.md).
 
 ## Status
 
-**Prototype — not production-ready.** No license file is included; treat as demo source until a license is added.
+**Prototype — not production-ready.** No licence file is included; treat as demo source until a licence is added.

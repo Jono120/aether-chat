@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  Shield, Eye, EyeOff, Trash2, ShieldAlert, ShieldCheck, 
-  Lock, RotateCcw, Key, HelpCircle, HardDriveDownload 
+import {
+  Eye, Trash2, ShieldAlert,
+  Lock, RotateCcw, Key,
 } from 'lucide-react';
+import { useToast } from '../context/ToastContext';
+import { cancelAccountDeletion, isApiEnabled, scheduleAccountDeletion } from '../api/client';
 
 /**
  * PrivacyCenter Component
- * 
+ *
  * Uses custom semantic classes defined in index.css:
  * - privacy-grid / privacy-card / privacy-card-header / privacy-card-title
  * - settings-row / settings-row-label / settings-row-desc
@@ -15,19 +17,18 @@ import {
  * - countdown-alert / countdown-timer-box / countdown-timer-val
  * - form-toggle / form-toggle-slider
  */
-export default function PrivacyCenter({ 
-  stealthMode, 
-  setStealthMode, 
-  onPanicTrigger, 
-  currentUser, 
+export default function PrivacyCenter({
+  stealthMode,
+  setStealthMode,
+  onPanicTrigger,
+  currentUser,
   generateNewKeys,
   albumScreenshotShield,
   setAlbumScreenshotShield,
 }) {
+  const { toast, confirm } = useToast();
   const [fuzzingStrategy, setFuzzingStrategy] = useState('grid_snap');
   const [pinLockEnabled, setPinLockEnabled] = useState(false);
-
-  // Deletion grace states
   const [isDeleting, setIsDeleting] = useState(false);
   const [deletionTimer, setDeletionTimer] = useState(null);
 
@@ -57,48 +58,80 @@ export default function PrivacyCenter({
   const calculateTimeRemaining = (targetTimeStr) => {
     const target = new Date(targetTimeStr);
     const diff = target - new Date();
-    
+
     if (diff <= 0) {
-      setDeletionTimer("EXPIRED - ACCOUNT PURGED");
+      setDeletionTimer('EXPIRED - ACCOUNT PURGED');
       onPanicTrigger();
     } else {
       const days = Math.floor(diff / (1000 * 60 * 60 * 24));
       const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
       const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
       const seconds = Math.floor((diff % (1000 * 60)) / 1000);
-      
+
       setDeletionTimer(`${days}d ${hours}h ${minutes}m ${seconds}s`);
     }
   };
 
-  const requestAccountDeletion = () => {
+  const requestAccountDeletion = async () => {
+    const approved = await confirm(
+      'Your profile will be hidden immediately and permanently deleted after a 30-day grace period. Continue?',
+      { confirmLabel: 'Schedule Deletion', cancelLabel: 'Keep Account' },
+    );
+    if (!approved) return;
+
     setStealthMode(true);
-    
+
     const scheduledDate = new Date();
     scheduledDate.setDate(scheduledDate.getDate() + 30);
-    
-    localStorage.setItem('aether_deletion_scheduled', scheduledDate.toISOString());
-    setIsDeleting(true);
-    calculateTimeRemaining(scheduledDate.toISOString());
+
+    if (isApiEnabled()) {
+      try {
+        const result = await scheduleAccountDeletion();
+        if (result?.scheduledPurgeAt) {
+          localStorage.setItem('aether_deletion_scheduled', result.scheduledPurgeAt);
+          setIsDeleting(true);
+          calculateTimeRemaining(result.scheduledPurgeAt);
+        }
+      } catch (err) {
+        console.warn('Server deletion schedule failed', err);
+        localStorage.setItem('aether_deletion_scheduled', scheduledDate.toISOString());
+        setIsDeleting(true);
+        calculateTimeRemaining(scheduledDate.toISOString());
+      }
+    } else {
+      localStorage.setItem('aether_deletion_scheduled', scheduledDate.toISOString());
+      setIsDeleting(true);
+      calculateTimeRemaining(scheduledDate.toISOString());
+    }
+
+    toast('Account marked for deletion. You are now hidden from discovery.', { type: 'info' });
   };
 
-  const cancelAccountDeletion = () => {
+  const cancelAccountDeletionLocal = async () => {
+    if (isApiEnabled()) {
+      try {
+        await cancelAccountDeletion();
+      } catch (err) {
+        console.warn('Server deletion cancel failed', err);
+      }
+    }
     localStorage.removeItem('aether_deletion_scheduled');
     setIsDeleting(false);
     setDeletionTimer(null);
     setStealthMode(false);
+    toast('Account deletion cancelled. Discovery visibility restored.', { type: 'success' });
   };
 
-  const handleDeviceWipe = () => {
-    if (window.confirm("This will erase E2EE key rings, text cache, and media from this browser. Continue?")) {
-      onPanicTrigger();
-    }
+  const handleDeviceWipe = async () => {
+    const approved = await confirm(
+      'This will erase key rings, messages, and images from this application. Continue?',
+      { confirmLabel: 'Wipe Account', cancelLabel: 'Cancel' },
+    );
+    if (approved) onPanicTrigger();
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-      
-      {/* Page Title Header */}
+    <div className="page-stack">
       <div className="grid-section-header">
         <div>
           <h2 className="grid-section-title">Privacy Control Center</h2>
@@ -108,12 +141,11 @@ export default function PrivacyCenter({
         </div>
       </div>
 
-      {/* Account Deletion Active Alert Countdown */}
       {isDeleting && (
         <div className="countdown-alert">
           <div className="countdown-header">
-            <div className="logo-icon" style={{ flexShrink: 0, width: '2.25rem', height: '2.25rem', borderRadius: '6px', background: 'rgba(244,63,94,0.1)', color: '#f43f5e' }}>
-              <ShieldAlert className="h-5 w-5" />
+            <div className="banner-icon-wrap banner-icon-wrap--sm">
+              <ShieldAlert className="icon-md" />
             </div>
             <div>
               <h4 className="countdown-title">Account Marked for Deletion</h4>
@@ -125,32 +157,28 @@ export default function PrivacyCenter({
 
           <div className="countdown-timer-box">
             <div className="countdown-timer-wrap">
-              <span style={{ fontSize: '0.55rem', color: 'var(--text-secondary)', textTransform: 'uppercase', display: 'block', fontWeight: '700' }}>Time Before Purge</span>
+              <span className="countdown-label">Time Before Purge</span>
               <span className="countdown-timer-val">{deletionTimer}</span>
             </div>
-            
+
             <button
-              onClick={cancelAccountDeletion}
-              className="btn"
-              style={{ backgroundColor: 'rgba(16,185,129,0.15)', color: '#10b981', border: '1px solid rgba(16,185,129,0.25)', fontSize: '0.7rem' }}
+              onClick={cancelAccountDeletionLocal}
+              className="btn btn-restore"
             >
-              <RotateCcw className="h-3.5 w-3.5 mr-1" /> Restore Account
+              <RotateCcw className="icon-sm" /> Restore Account
             </button>
           </div>
         </div>
       )}
 
-      {/* Core Privacy Grid Settings Panel */}
       <div className="privacy-grid">
-        
-        {/* Card 1: Location & Grid Visibility */}
         <div className="privacy-card">
           <div className="privacy-card-header">
-            <Eye className="h-4.5 w-4.5" style={{ color: 'var(--color-violet)' }} />
+            <Eye className="icon-md text-violet" />
             <h3 className="privacy-card-title">Discovery & Location</h3>
           </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+          <div className="settings-stack">
             <div className="settings-row">
               <div>
                 <h4 className="settings-row-label">Broadcast on Discovery Grid</h4>
@@ -159,27 +187,24 @@ export default function PrivacyCenter({
                 </p>
               </div>
               <label className="form-toggle">
-                <input 
-                  type="checkbox" 
-                  checked={!stealthMode} 
-                  onChange={() => setStealthMode(!stealthMode)} 
+                <input
+                  type="checkbox"
+                  checked={!stealthMode}
+                  onChange={() => setStealthMode(!stealthMode)}
                   disabled={isDeleting}
                 />
                 <span className="form-toggle-slider" />
               </label>
             </div>
 
-            {/* Fuzzing Policy selector */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-              <span style={{ fontSize: '0.65rem', fontWeight: '700', textTransform: 'uppercase', color: 'var(--text-secondary)' }}>
-                Backend Distance Fuzzing Profile
-              </span>
-              
+            <div className="u-flex-col u-gap-sm">
+              <span className="section-label">Backend Distance Fuzzing Profile</span>
+
               <div className="strategy-list">
                 {[
                   { id: 'grid_snap', label: 'Grid Snapping (1km square snap)', desc: 'Aligns coordinates to grid squares to prevent trilateration.' },
                   { id: 'jitter', label: 'Gaussian Jitter (random 500m offset)', desc: 'Adds random offsets server-side to mask precise readings.' },
-                  { id: 'distance_only', label: 'Broad Distance Bands Only', desc: 'Hides metrics, displaying broad bands ("Nearby", "Within 5km").' }
+                  { id: 'distance_only', label: 'Broad Distance Bands Only', desc: 'Hides metrics, displaying broad bands ("Nearby", "Within 5km").' },
                 ].map((strategy) => (
                   <div
                     key={strategy.id}
@@ -189,8 +214,8 @@ export default function PrivacyCenter({
                     <input
                       type="radio"
                       checked={fuzzingStrategy === strategy.id}
-                      onChange={() => {}} // Controlled via onClick on div
-                      style={{ marginTop: '0.15rem', accentColor: 'var(--color-violet)' }}
+                      onChange={() => {}}
+                      className="strategy-radio"
                       disabled={isDeleting}
                     />
                     <div>
@@ -204,23 +229,22 @@ export default function PrivacyCenter({
           </div>
         </div>
 
-        {/* Card 2: E2EE Cryptographic Keyring */}
         <div className="privacy-card">
           <div className="privacy-card-header">
-            <Key className="h-4.5 w-4.5" style={{ color: 'var(--color-cyan)' }} />
-            <h3 className="privacy-card-title">Cryptographic Key Ring</h3>
+            <Key className="icon-md text-cyan" />
+            <h3 className="privacy-card-title">Key Ring</h3>
           </div>
 
           <div className="key-ring-box">
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+            <div className="u-flex-col u-gap-sm">
               <span className="key-ring-label">Active Public Key (DH-X25519)</span>
               <pre className="key-ring-pre">{currentUser.keys.publicKey}</pre>
             </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+            <div className="u-flex-col u-gap-sm">
               <div className="key-ring-label-row">
                 <span className="key-ring-label">Local Private Key</span>
-                <span className="metadata-badge badge-warning" style={{ fontSize: '0.55rem' }}>NEVER SHARED</span>
+                <span className="metadata-badge badge-warning badge-sm">NEVER SHARED</span>
               </div>
               <pre className="key-ring-pre key-ring-pre-private">
                 {currentUser.keys.privateKey.substring(0, 24)}**************************
@@ -229,36 +253,34 @@ export default function PrivacyCenter({
 
             <div className="key-fingerprint-row">
               <div>
-                <span className="key-ring-label" style={{ fontSize: '0.6rem' }}>Identity Key Fingerprint</span>
+                <span className="key-ring-label key-fingerprint-text">Identity Key Fingerprint</span>
                 <span className="key-fingerprint-val">{currentUser.keys.fingerprint}</span>
               </div>
               <button
                 onClick={generateNewKeys}
                 disabled={isDeleting}
-                className="btn btn-secondary"
-                style={{ fontSize: '0.65rem', padding: '0.25rem 0.5rem' }}
+                className="btn btn-secondary btn-sm"
               >
                 Rotate Keys
               </button>
             </div>
 
-            <div className="warning-banner" style={{ background: 'rgba(6,182,212,0.03)', borderColor: 'rgba(6,182,212,0.1)', padding: '0.5rem', marginBottom: 0 }}>
-              <p className="warning-banner-text" style={{ fontSize: '0.6rem' }}>
+            <div className="warning-banner warning-banner--cyan">
+              <p className="warning-banner-text">
                 Key pairs are generated locally in your browser. The server coordinates handshakes but cannot read message contents.
               </p>
             </div>
           </div>
         </div>
 
-        {/* Card 3: App Locks & Screen Protection */}
         <div className="privacy-card">
           <div className="privacy-card-header">
-            <Lock className="h-4.5 w-4.5" style={{ color: 'var(--color-emerald)' }} />
+            <Lock className="icon-md text-emerald" />
             <h3 className="privacy-card-title">App & Screen Security</h3>
           </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-            <div className="settings-row" style={{ marginBottom: '0.5rem' }}>
+          <div className="settings-stack settings-stack--tight">
+            <div className="settings-row settings-row--compact">
               <div>
                 <h4 className="settings-row-label">App Access PIN Lock</h4>
                 <p className="settings-row-desc">
@@ -266,17 +288,17 @@ export default function PrivacyCenter({
                 </p>
               </div>
               <label className="form-toggle">
-                <input 
-                  type="checkbox" 
-                  checked={pinLockEnabled} 
-                  onChange={() => setPinLockEnabled(!pinLockEnabled)} 
+                <input
+                  type="checkbox"
+                  checked={pinLockEnabled}
+                  onChange={() => setPinLockEnabled(!pinLockEnabled)}
                   disabled={isDeleting}
                 />
                 <span className="form-toggle-slider" />
               </label>
             </div>
 
-            <div className="settings-row" style={{ marginBottom: 0 }}>
+            <div className="settings-row settings-row--flush">
               <div>
                 <h4 className="settings-row-label">Private Album Screen Shield</h4>
                 <p className="settings-row-desc">
@@ -284,10 +306,10 @@ export default function PrivacyCenter({
                 </p>
               </div>
               <label className="form-toggle">
-                <input 
-                  type="checkbox" 
-                  checked={albumScreenshotShield} 
-                  onChange={() => setAlbumScreenshotShield(!albumScreenshotShield)} 
+                <input
+                  type="checkbox"
+                  checked={albumScreenshotShield}
+                  onChange={() => setAlbumScreenshotShield(!albumScreenshotShield)}
                   disabled={isDeleting}
                 />
                 <span className="form-toggle-slider" />
@@ -296,11 +318,10 @@ export default function PrivacyCenter({
           </div>
         </div>
 
-        {/* Card 4: Destruction Center (Danger Zone) */}
         <div className="privacy-card destructive-panel">
-          <div className="privacy-card-header" style={{ borderColor: 'rgba(244,63,94,0.1)' }}>
-            <Trash2 className="h-4.5 w-4.5" style={{ color: 'var(--color-rose)' }} />
-            <h3 className="privacy-card-title" style={{ color: '#ffffff' }}>Destruction Center</h3>
+          <div className="privacy-card-header privacy-card-header--danger">
+            <Trash2 className="icon-md text-rose" />
+            <h3 className="privacy-card-title">Destruction Center</h3>
           </div>
 
           <p className="destructive-desc">
@@ -310,25 +331,21 @@ export default function PrivacyCenter({
           <div className="destructive-actions">
             <button
               onClick={handleDeviceWipe}
-              className="btn btn-secondary"
-              style={{ borderColor: 'rgba(244,63,94,0.2)', color: 'var(--color-rose)', fontSize: '0.7rem' }}
+              className="btn btn-secondary btn-wipe-outline"
             >
               Clear Cache & Wipe Device Keys
             </button>
-            
+
             <button
               onClick={requestAccountDeletion}
               disabled={isDeleting}
-              className="btn btn-danger"
-              style={{ fontSize: '0.7rem' }}
+              className="btn btn-danger btn-sm"
             >
               Delete Account from Database (30-day grace)
             </button>
           </div>
         </div>
-
       </div>
-
     </div>
   );
 }

@@ -9,7 +9,7 @@ Local setup and conventions for working on the **Aether** prototype. Repository 
 - **Node.js** 18 or newer
 - **npm** (bundled with Node)
 
-No database, Docker, or API keys required.
+No database required for UI-only work. Optional API stack: Docker PostgreSQL + `api/` (see below).
 
 ---
 
@@ -32,19 +32,27 @@ From [`package.json`](../package.json):
 
 ```text
 optimistic-pasteur/
-├── docs/                 # SECURITY, ARCHITECTURE, FEATURES, DEVELOPMENT
+├── api/                  # TypeScript REST API (profiles, keys, chat, media)
+├── docs/                 # SECURITY, ARCHITECTURE, BACKEND, DATA_MODEL, …
+├── infra/                # Terraform (SWA + optional backend modules)
 ├── public/               # Static assets (favicon)
 ├── src/
+│   ├── api/client.js     # API client (when VITE_API_URL set)
 │   ├── App.jsx           # Root state, profiles, panic wipe, tab routing
-│   ├── main.jsx          # React entry
-│   ├── index.css         # Semantic design system
+│   ├── main.jsx          # React entry (ToastProvider wrapper)
+│   ├── index.css         # Semantic design system (tokens / base / utilities / components)
+│   ├── context/
+│   │   └── ToastContext.jsx
+│   ├── hooks/
+│   │   └── useFocusTrap.js
 │   ├── components/
 │   │   ├── Navigation.jsx
 │   │   ├── Grid.jsx
 │   │   ├── ChatRoom.jsx
-│   │   └── PrivacyCenter.jsx
+│   │   ├── PrivacyCenter.jsx
+│   │   └── Toast.jsx
 │   └── utils/
-│       ├── crypto.js     # E2EE simulator
+│       ├── crypto.js     # Web Crypto X25519 + AES-GCM
 │       └── exif.js       # JPEG EXIF inspect/strip
 ├── scripts/
 │   └── start-dev.mjs     # npm start launcher
@@ -60,28 +68,54 @@ optimistic-pasteur/
 
 - **Components:** Functional React with hooks; props passed from `App.jsx` for global concerns.
 - **Utilities:** JSDoc on exported functions in `src/utils/`.
-- **Styling:** Prefer semantic classes from `index.css`; document new classes in the component header comment.
+- **Styling:** Prefer semantic classes from `index.css`; document new classes in the component header comment. Layers: tokens → base → utilities → components.
+- **Toasts:** Use `useToast()` from `ToastContext` instead of `alert()` or `window.confirm()`.
+- **Modals:** Pair `useFocusTrap` with Escape handler for keyboard accessibility.
 - **Icons:** `lucide-react` imports per component.
 - **Naming:** Product strings use **Aether**; storage keys prefixed `aether_`.
 
 ---
 
-## Adding a mock profile
+## Full-stack local development
 
-1. Append an object to the `profiles` array in [`src/App.jsx`](../src/App.jsx) (`id`, `username`, `fuzzedDistance`, colors, `hasSecureAlbum`, etc.).
-2. Optional: seed messages in `ChatRoom.jsx` `conversations` under the same `id` key.
-3. Optional: add `getKeysForPartner` public key mapping in `ChatRoom.jsx` for realistic wire inspector labels.
+```bash
+# PostgreSQL
+docker run -d --name aether-pg -e POSTGRES_USER=aetheradmin -e POSTGRES_PASSWORD=aether -e POSTGRES_DB=aether -p 5432:5432 postgres:16
+
+# API (terminal 1)
+cd api && cp .env.example .env && npm install && npm run migrate && npm run seed && npm run dev
+
+# SPA (terminal 2)
+cp .env.example .env
+npm run dev
+```
+
+`.env` for the SPA:
+
+```env
+VITE_API_URL=http://localhost:8080
+VITE_DEV_USER_ID=dev-user-1
+```
+
+The API accepts `X-Dev-User-Id` when `DEV_AUTH_BYPASS=true` (default in `api/.env.example`).
+
+---
+
+## Adding profiles
+
+**With API:** `npm run seed` in `api/` or insert rows in PostgreSQL.
+
+**Without API:** append to `MOCK_PROFILES` in [`src/App.jsx`](../src/App.jsx).
 
 ---
 
 ## Modifying crypto or EXIF
 
-| Module | Path | If you change behavior |
+| Module | Path | If you change behaviour |
 |--------|------|-------------------------|
-| Crypto simulator | `src/utils/crypto.js` | Update [SECURITY.md](SECURITY.md) and wire-inspector-related copy in [FEATURES.md](FEATURES.md) |
+| Web Crypto | `src/utils/crypto.js` | Update [SECURITY.md](SECURITY.md) |
 | EXIF tools | `src/utils/exif.js` | Update SECURITY.md (functional vs simulated sections) |
-
-Do not present `simpleCipher` or hex key strings as production cryptography in user-facing text.
+| API | `api/src/` | Update [BACKEND.md](BACKEND.md) and [DATA_MODEL.md](DATA_MODEL.md) |
 
 ---
 
@@ -101,18 +135,26 @@ Config: [`eslint.config.js`](../eslint.config.js) — flat config with React Hoo
 npm run build
 ```
 
-Output directory: `dist/`. Any static host (S3, Netlify, GitHub Pages, etc.) can serve the folder. Environment has no server-side secrets in this prototype; still avoid embedding real private keys in source.
+Output directory: `dist/`. Vite copies [public/staticwebapp.config.json](../public/staticwebapp.config.json) into `dist/` for SPA routing and security headers on Azure Static Web Apps.
+
+For Azure hosting, Terraform, and GitHub Actions pipelines, see [DEPLOYMENT.md](DEPLOYMENT.md) and [infra/README.md](../infra/README.md).
 
 ---
 
 ## Documentation index
 
+See [README.md](README.md) in this folder for the full map.
+
 | Doc | Topic |
 |-----|--------|
-| [SECURITY.md](SECURITY.md) | Prototype limits, simulated vs real behavior |
+| [project-summary.md](project-summary.md) | Executive summary and architecture overview |
+| [SECURITY.md](SECURITY.md) | Prototype limits, simulated vs real behaviour |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | Components, state, flows |
-| [FEATURES.md](FEATURES.md) | Feature catalog and demo script |
+| [FEATURES.md](FEATURES.md) | Feature catalogue and demo script |
 | [DEVELOPMENT.md](DEVELOPMENT.md) | This file |
+| [DEPLOYMENT.md](DEPLOYMENT.md) | Azure SWA, Terraform, CI/CD |
+| [BACKEND.md](BACKEND.md) | API services and E2EE boundaries |
+| [DATA_MODEL.md](DATA_MODEL.md) | Database schema |
 | [DESIGN.md](DESIGN.md) | Design criteria and plan vs built |
 
 ---
@@ -142,4 +184,21 @@ Expect a clean Vite production build.
 | 9 | Regular chat copyable; album shield scoped to album |
 | 10 | Mobile bottom nav: Grid / Chat / Security |
 
-Last verified: 2026-05-21 — build passed; stealth grid hide, album shield wiring, stable group key `GRP-KID-105` implemented in code review pass.
+### Visual QA (UI modernisation)
+
+Run at **desktop (≥768px)** and **mobile (<768px)** unless noted.
+
+| # | Check |
+|---|--------|
+| V1 | **Chat mobile:** contact list **or** thread visible, not both; back arrow returns to list |
+| V2 | **Icons:** Lucide icons use consistent `.icon-sm` / `.icon-md` sizing in header, grid modal, chat toolbar |
+| V3 | **Focus:** Tab through header tabs, panic modal, strategy radios — visible `:focus-visible` ring on all interactive elements |
+| V4 | **Reduced motion:** enable OS “reduce motion”; no pulse on panic button, countdown banner, album shield, or skeleton shimmer |
+| V5 | **Toasts:** key rotate, panic wipe, deletion schedule/cancel, device wipe confirm — toast UI, not blocking `alert`/`confirm` |
+| V6 | **Tab fade:** switching Grid / Chat / Security shows subtle content fade (disabled under reduced motion) |
+| V7 | **Grid entrance:** profile cards stagger in on load (disabled under reduced motion) |
+| V8 | **Chat messages:** new sent/received bubbles use `.message-enter` micro-animation |
+| V9 | **Modals:** profile modal and panic modal trap focus; Escape closes; backdrop click closes profile modal |
+| V10 | **Scrollbars:** chat contact list, message pane, album viewport use `.custom-scrollbar` styling |
+
+Last verified: 2026-06-02 — `npm run build` passed; docs aligned with React 19 / Vite 8 client-only prototype.

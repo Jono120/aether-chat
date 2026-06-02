@@ -9,7 +9,7 @@ Product intent and design criteria for the **Aether** privacy-first dating proto
 These five criteria govern UX copy and what the prototype must demonstrate:
 
 1. **No real location maps** — The grid shows fuzzed distance bands only ("Nearby", "Within 5 km"). There are no map tiles, GPS pins, or precise coordinates in the UI.
-2. **Screenshot policy split** — Secure ephemeral albums blur when the browser loses focus (and when the Privacy Center shield toggle is on). Regular chat threads and profile modals remain copyable; there is no chat-wide screenshot block.
+2. **Screenshot policy split** — Secure ephemeral albums blur when the browser loses focus (and when the Privacy Centre shield toggle is on). Regular chat threads and profile modals remain copyable; there is no chat-wide screenshot block.
 3. **Panic vs deletion** — **Panic wipe** clears local storage immediately and enables stealth. **Account deletion** is a separate 30-day server grace period with countdown and cancel — simulated via `localStorage` in this prototype.
 4. **Invisible mode** — Stealth mode hides the discovery grid so nearby users cannot browse or open your profile card until visibility is restored.
 5. **Documented CSS** — Styling lives in [`src/index.css`](../src/index.css) with semantic class names and comments (not Tailwind).
@@ -22,7 +22,7 @@ These five criteria govern UX copy and what the prototype must demonstrate:
 flowchart LR
   ChatUI[Chat and profiles] --> AllowCopy[Copy and screenshot allowed]
   AlbumUI[Secure album] --> Shield[Blur on window blur]
-  Shield --> Toggle[Privacy Center toggle]
+  Shield --> Toggle[Privacy Centre toggle]
 ```
 
 | Surface | Screenshot / copy | Shield |
@@ -35,7 +35,7 @@ flowchart LR
 
 ## Plan vs built
 
-Original planning notes in [`implementation_plan.md`](../implementation_plan.md) (historical). Current repository:
+Early planning assumed Tailwind and Web Crypto API keys. The shipped prototype differs as follows:
 
 | Planned (implementation plan) | Actual |
 |-------------------------------|--------|
@@ -44,7 +44,7 @@ Original planning notes in [`implementation_plan.md`](../implementation_plan.md)
 | IndexedDB for panic cache | **`localStorage` only** (`aether_user_keys`, `aether_deletion_scheduled`) |
 | Chat persistence across reload | React state in `ChatRoom` — **lost on full page reload** |
 | Stealth hides grid | **Implemented** — empty state when `stealthMode` |
-| Album shield wired to Privacy Center | **Implemented** — lifted to `App.jsx` |
+| Album shield wired to Privacy Centre | **Implemented** — lifted to `App.jsx` |
 
 ---
 
@@ -64,10 +64,13 @@ Original planning notes in [`implementation_plan.md`](../implementation_plan.md)
 
 ## Documentation index
 
+See [README.md](README.md) for the full map. Key documents:
+
 | Doc | Topic |
 |-----|--------|
 | [README.md](../README.md) | Quick start, feature overview |
-| [FEATURES.md](FEATURES.md) | Feature catalog and 5-minute demo |
+| [project-summary.md](project-summary.md) | Executive summary and architecture overview |
+| [FEATURES.md](FEATURES.md) | Feature catalogue and 5-minute demo |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | Components, state, flows |
-| [SECURITY.md](SECURITY.md) | Simulated vs real behavior |
+| [SECURITY.md](SECURITY.md) | Simulated vs real behaviour |
 | [DEVELOPMENT.md](DEVELOPMENT.md) | Scripts, verification checklist |
