@@ -53,3 +53,16 @@ variable "tags" {
   type    = map(string)
   default = {}
 }
+
+variable "env_vars" {
+  description = "Plain environment variables for the API container."
+  type        = map(string)
+  default     = {}
+}
+
+variable "secret_env" {
+  description = "Secret environment variables (name -> value) stored as Container App secrets."
+  type        = map(string)
+  sensitive   = true
+  default     = {}
+}

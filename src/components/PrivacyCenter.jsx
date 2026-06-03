@@ -1,21 +1,110 @@
 import React, { useState, useEffect } from 'react';
 import {
-  Eye, Trash2, ShieldAlert,
-  Lock, RotateCcw, Key,
+  Eye,
+  Trash2,
+  ShieldAlert,
+  Lock,
+  RotateCcw,
+  HelpCircle,
+  MessageCircle,
+  Smartphone,
+  Accessibility,
+  Bug,
+  FileText,
 } from 'lucide-react';
 import { useToast } from '../context/ToastContext';
-import { cancelAccountDeletion, isApiEnabled, scheduleAccountDeletion } from '../api/client';
+import {
+  cancelAccountDeletion,
+  isApiEnabled,
+  patchMessagingPreferences,
+  scheduleAccountDeletion,
+  submitErrorReport,
+} from '../api/client';
+import { loadSession } from '../utils/authStorage';
+import {
+  getAppSecurity,
+  isSensitiveUnlocked,
+  revokeSensitiveUnlock,
+} from '../utils/appSecurityStorage';
+import AppSecuritySettings from './AppSecuritySettings';
+import SensitiveUnlock from './SensitiveUnlock';
+import ChangePasswordForm from './ChangePasswordForm';
+import { flushQueuedErrorReports, queueErrorReportLocally } from '../utils/errorReportStorage';
+import {
+  isAutoErrorReportEnabled,
+  setAutoErrorReportEnabled,
+} from '../utils/clientErrorReporting';
+import LegalLinks from './LegalLinks';
+import DiscoveryTutorial from './DiscoveryTutorial';
+import EncryptionTipsModal from './EncryptionTipsModal';
+import ChatBackupPanel from './ChatBackupPanel';
+import { MSG } from '../utils/userMessages';
+import { SELF_DESTRUCT_OPTIONS } from '../utils/messagingStorage';
+
+const MSG_TIMER_LABELS = {
+  0: MSG.settingsMsgTimerOff,
+  10: MSG.settingsMsgTimer10s,
+  60: MSG.settingsMsgTimer1m,
+  3600: MSG.settingsMsgTimer1h,
+};
+
+const MESSAGING_PLANNED = [MSG.settingsMsgPlannedLinks];
+
+const ACCOUNT_PLANNED = [
+  MSG.settingsAccountPlannedExport,
+  MSG.settingsAccountPlannedSessions,
+  MSG.settingsAccountPlannedLinked,
+  MSG.settingsAccountPlannedEmail,
+];
+
+const SETTINGS_SECTIONS = [
+  { id: 'discovery', label: MSG.settingsNavDiscovery, icon: Eye },
+  { id: 'messaging', label: MSG.settingsNavMessaging, icon: MessageCircle },
+  { id: 'security', label: MSG.settingsNavSecurity, icon: Smartphone },
+  { id: 'accessibility', label: MSG.settingsNavAccessibility, icon: Accessibility },
+  { id: 'account', label: MSG.settingsNavAccount, icon: Trash2 },
+  { id: 'legal', label: MSG.settingsNavLegal, icon: FileText },
+  { id: 'diagnostics', label: MSG.settingsNavDiagnostics, icon: HelpCircle },
+];
+
+const TEXT_SIZE_STRATEGIES = [
+  {
+    id: 'default',
+    label: MSG.settingsTextSizeDefault,
+    desc: MSG.settingsTextSizeDefaultDesc,
+  },
+  {
+    id: 'large',
+    label: MSG.settingsTextSizeLarge,
+    desc: MSG.settingsTextSizeLargeDesc,
+  },
+  {
+    id: 'extra',
+    label: MSG.settingsTextSizeExtra,
+    desc: MSG.settingsTextSizeExtraDesc,
+  },
+];
+
+const DISTANCE_STRATEGIES = [
+  {
+    id: 'grid_snap',
+    label: MSG.settingsDistanceGrid,
+    desc: MSG.settingsDistanceGridDesc,
+  },
+  {
+    id: 'jitter',
+    label: MSG.settingsDistanceJitter,
+    desc: MSG.settingsDistanceJitterDesc,
+  },
+  {
+    id: 'distance_only',
+    label: MSG.settingsDistanceBands,
+    desc: MSG.settingsDistanceBandsDesc,
+  },
+];
 
 /**
- * PrivacyCenter Component
- *
- * Uses custom semantic classes defined in index.css:
- * - privacy-grid / privacy-card / privacy-card-header / privacy-card-title
- * - settings-row / settings-row-label / settings-row-desc
- * - strategy-list / strategy-option / strategy-option-active
- * - key-ring-box / key-ring-pre / key-fingerprint-row
- * - countdown-alert / countdown-timer-box / countdown-timer-val
- * - form-toggle / form-toggle-slider
+ * Settings / privacy centre with one section visible at a time.
  */
 export default function PrivacyCenter({
   stealthMode,
@@ -25,12 +114,24 @@ export default function PrivacyCenter({
   generateNewKeys,
   albumScreenshotShield,
   setAlbumScreenshotShield,
+  accessibility,
+  onAccessibilityChange,
+  messagingPrefs,
+  onMessagingPrefsChange,
+  onNavigateTab,
+  onChatBackupRestore,
 }) {
   const { toast, confirm } = useToast();
+  const [activeSection, setActiveSection] = useState('discovery');
   const [fuzzingStrategy, setFuzzingStrategy] = useState('grid_snap');
-  const [pinLockEnabled, setPinLockEnabled] = useState(false);
+  const [sensitiveUnlocked, setSensitiveUnlocked] = useState(() => isSensitiveUnlocked());
   const [isDeleting, setIsDeleting] = useState(false);
   const [deletionTimer, setDeletionTimer] = useState(null);
+  const [errorReportText, setErrorReportText] = useState('');
+  const [errorReportIncludeContext, setErrorReportIncludeContext] = useState(true);
+  const [errorReportSubmitting, setErrorReportSubmitting] = useState(false);
+  const [autoErrorReport, setAutoErrorReport] = useState(() => isAutoErrorReportEnabled());
+  const [encryptionTipsOpen, setEncryptionTipsOpen] = useState(false);
 
   useEffect(() => {
     const deletionTimestamp = localStorage.getItem('aether_deletion_scheduled');
@@ -38,7 +139,21 @@ export default function PrivacyCenter({
       setIsDeleting(true);
       calculateTimeRemaining(deletionTimestamp);
     }
+    if (isApiEnabled()) {
+      flushQueuedErrorReports().catch(() => {});
+    }
   }, []);
+
+  useEffect(() => {
+    if (activeSection !== 'diagnostics') {
+      revokeSensitiveUnlock();
+      setSensitiveUnlocked(false);
+    } else {
+      setSensitiveUnlocked(isSensitiveUnlocked());
+    }
+  }, [activeSection]);
+
+  useEffect(() => () => revokeSensitiveUnlock(), []);
 
   useEffect(() => {
     let interval = null;
@@ -73,10 +188,10 @@ export default function PrivacyCenter({
   };
 
   const requestAccountDeletion = async () => {
-    const approved = await confirm(
-      'Your profile will be hidden immediately and permanently deleted after a 30-day grace period. Continue?',
-      { confirmLabel: 'Schedule Deletion', cancelLabel: 'Keep Account' },
-    );
+    const approved = await confirm(MSG.settingsDeleteConfirm, {
+      confirmLabel: MSG.settingsDeleteConfirmBtn,
+      cancelLabel: MSG.settingsDeleteCancelBtn,
+    });
     if (!approved) return;
 
     setStealthMode(true);
@@ -104,7 +219,7 @@ export default function PrivacyCenter({
       calculateTimeRemaining(scheduledDate.toISOString());
     }
 
-    toast('Account marked for deletion. You are now hidden from discovery.', { type: 'info' });
+    toast(MSG.accountDeletionScheduled, { type: 'info' });
   };
 
   const cancelAccountDeletionLocal = async () => {
@@ -119,25 +234,519 @@ export default function PrivacyCenter({
     setIsDeleting(false);
     setDeletionTimer(null);
     setStealthMode(false);
-    toast('Account deletion cancelled. Discovery visibility restored.', { type: 'success' });
+    toast(MSG.accountDeletionCancelled, { type: 'success' });
   };
 
   const handleDeviceWipe = async () => {
-    const approved = await confirm(
-      'This will erase key rings, messages, and images from this application. Continue?',
-      { confirmLabel: 'Wipe Account', cancelLabel: 'Cancel' },
-    );
+    const approved = await confirm(MSG.settingsWipeConfirm, {
+      confirmLabel: MSG.settingsWipeConfirmBtn,
+      cancelLabel: MSG.cancel,
+    });
     if (approved) onPanicTrigger();
+  };
+
+  const renderPlannedRoadmap = (title, items) => (
+    <div className="settings-roadmap">
+      <span className="section-label">{title}</span>
+      <p className="settings-roadmap-note">{MSG.settingsPlannedNote}</p>
+      <ul className="settings-roadmap-list">
+        {items.map((text) => (
+          <li key={text} className="settings-roadmap-item">
+            <span>{text}</span>
+            <span className="metadata-badge settings-planned-badge">{MSG.settingsPlannedBadge}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+
+  const renderSectionHeader = (Icon, title, desc, iconClass = 'text-violet') => (
+    <>
+      <div className="privacy-card-header">
+        <Icon className={`icon-md ${iconClass}`} />
+        <h3 className="privacy-card-title">{title}</h3>
+      </div>
+      {desc && <p className="settings-section-desc">{desc}</p>}
+    </>
+  );
+
+  const renderDiscovery = () => (
+    <div className="settings-panel-inner">
+      {renderSectionHeader(Eye, MSG.settingsDiscoveryTitle, MSG.settingsDiscoveryDesc, 'text-violet')}
+      <DiscoveryTutorial onNavigateTab={onNavigateTab} disabled={isDeleting} />
+      <div className="settings-stack">
+        <div className="settings-row">
+          <div>
+            <h4 className="settings-row-label">{MSG.settingsShowOnGrid}</h4>
+            <p className="settings-row-desc">{MSG.settingsShowOnGridDesc}</p>
+          </div>
+          <label className="form-toggle">
+            <input
+              type="checkbox"
+              checked={!stealthMode}
+              onChange={() => setStealthMode(!stealthMode)}
+              disabled={isDeleting}
+            />
+            <span className="form-toggle-slider" />
+          </label>
+        </div>
+
+        <div className="u-flex-col u-gap-sm">
+          <span className="section-label">{MSG.settingsDistanceLabel}</span>
+          <div className="strategy-list">
+            {DISTANCE_STRATEGIES.map((strategy) => (
+              <div
+                key={strategy.id}
+                onClick={() => !isDeleting && setFuzzingStrategy(strategy.id)}
+                className={`strategy-option ${fuzzingStrategy === strategy.id ? 'strategy-option-active' : ''}`}
+              >
+                <input
+                  type="radio"
+                  checked={fuzzingStrategy === strategy.id}
+                  onChange={() => {}}
+                  className="strategy-radio"
+                  disabled={isDeleting}
+                />
+                <div>
+                  <h5 className="strategy-option-title">{strategy.label}</h5>
+                  <p className="strategy-option-desc">{strategy.desc}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  const patchMessaging = async (updates) => {
+    const next = { ...messagingPrefs, ...updates };
+    onMessagingPrefsChange(next);
+    if (isApiEnabled() && typeof updates.readReceiptsEnabled === 'boolean') {
+      try {
+        await patchMessagingPreferences(updates.readReceiptsEnabled);
+      } catch (err) {
+        console.warn('Messaging preferences sync failed', err);
+      }
+    }
+  };
+
+  const renderMessaging = () => (
+    <div className="settings-panel-inner">
+      {renderSectionHeader(Lock, MSG.settingsMessagingTitle, MSG.settingsMessagingDesc, 'text-cyan')}
+      <div className="settings-stack">
+        <div className="settings-info-box settings-info-box--row">
+          <div>
+            <h4 className="settings-info-box-title">{MSG.settingsMsgEncryptionTitle}</h4>
+            <p className="settings-info-box-text">{MSG.settingsMsgEncryptionBody}</p>
+          </div>
+          <button
+            type="button"
+            className="btn btn-secondary btn-sm"
+            onClick={() => setEncryptionTipsOpen(true)}
+            disabled={isDeleting}
+          >
+            <Lock className="icon-sm" />
+            {MSG.settingsMsgEncryptionModalBtn}
+          </button>
+        </div>
+
+        <div className="u-flex-col u-gap-sm">
+          <span className="section-label">{MSG.settingsMsgDefaultTimer}</span>
+          <p className="settings-row-desc settings-row-desc--flush">
+            {MSG.settingsMsgDefaultTimerDesc}
+          </p>
+          <div className="destruct-timing-bar destruct-timing-bar--settings">
+            {SELF_DESTRUCT_OPTIONS.map((opt) => (
+              <button
+                key={opt.value}
+                type="button"
+                onClick={() => patchMessaging({ defaultSelfDestructSeconds: opt.value })}
+                className={`destruct-timing-btn ${
+                  messagingPrefs.defaultSelfDestructSeconds === opt.value
+                    ? 'destruct-timing-btn-active'
+                    : ''
+                }`}
+                disabled={isDeleting}
+              >
+                {MSG_TIMER_LABELS[opt.value]}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="settings-row settings-row--compact">
+          <div>
+            <h4 className="settings-row-label">{MSG.settingsReadReceipts}</h4>
+            <p className="settings-row-desc">{MSG.settingsReadReceiptsDesc}</p>
+          </div>
+          <label className="form-toggle">
+            <input
+              type="checkbox"
+              checked={messagingPrefs.readReceiptsEnabled}
+              onChange={() =>
+                patchMessaging({ readReceiptsEnabled: !messagingPrefs.readReceiptsEnabled })
+              }
+              disabled={isDeleting}
+            />
+            <span className="form-toggle-slider" />
+          </label>
+        </div>
+
+        <ChatBackupPanel disabled={isDeleting} onRestore={onChatBackupRestore} />
+
+        {renderPlannedRoadmap(MSG.settingsPlannedTitle, MESSAGING_PLANNED)}
+      </div>
+      <EncryptionTipsModal open={encryptionTipsOpen} onClose={() => setEncryptionTipsOpen(false)} />
+    </div>
+  );
+
+  const session = loadSession();
+  const hasLocalPassword = Boolean(session?.user?.id?.startsWith('local:'));
+
+  const renderSecurity = () => (
+    <div className="settings-panel-inner">
+      {renderSectionHeader(Smartphone, MSG.settingsSecurityTitle, MSG.settingsSecurityDesc, 'text-emerald')}
+      <div className="settings-stack settings-stack--tight">
+        <AppSecuritySettings disabled={isDeleting} hasLocalPassword={hasLocalPassword} />
+
+        <div className="settings-row settings-row--flush">
+          <div>
+            <h4 className="settings-row-label">{MSG.settingsAlbumShield}</h4>
+            <p className="settings-row-desc">{MSG.settingsAlbumShieldDesc}</p>
+          </div>
+          <label className="form-toggle">
+            <input
+              type="checkbox"
+              checked={albumScreenshotShield}
+              onChange={() => setAlbumScreenshotShield(!albumScreenshotShield)}
+              disabled={isDeleting}
+            />
+            <span className="form-toggle-slider" />
+          </label>
+        </div>
+      </div>
+    </div>
+  );
+
+  const patchAccessibility = (updates) => {
+    onAccessibilityChange({ ...accessibility, ...updates });
+  };
+
+  const renderAccessibilityToggle = (key, label, desc) => (
+    <div className="settings-row settings-row--compact">
+      <div>
+        <h4 className="settings-row-label">{label}</h4>
+        <p className="settings-row-desc">{desc}</p>
+      </div>
+      <label className="form-toggle">
+        <input
+          type="checkbox"
+          checked={Boolean(accessibility[key])}
+          onChange={() => patchAccessibility({ [key]: !accessibility[key] })}
+          disabled={isDeleting}
+        />
+        <span className="form-toggle-slider" />
+      </label>
+    </div>
+  );
+
+  const renderAccessibility = () => (
+    <div className="settings-panel-inner">
+      {renderSectionHeader(
+        Accessibility,
+        MSG.settingsAccessibilityTitle,
+        MSG.settingsAccessibilityDesc,
+        'text-amber',
+      )}
+      <div className="settings-stack settings-stack--tight">
+        {renderAccessibilityToggle(
+          'lightMode',
+          MSG.settingsLightMode,
+          MSG.settingsLightModeDesc,
+        )}
+        {renderAccessibilityToggle(
+          'reduceMotion',
+          MSG.settingsReduceMotion,
+          MSG.settingsReduceMotionDesc,
+        )}
+        {renderAccessibilityToggle(
+          'highContrast',
+          MSG.settingsHighContrast,
+          MSG.settingsHighContrastDesc,
+        )}
+        {renderAccessibilityToggle(
+          'reduceTransparency',
+          MSG.settingsReduceTransparency,
+          MSG.settingsReduceTransparencyDesc,
+        )}
+        {renderAccessibilityToggle(
+          'strongFocus',
+          MSG.settingsStrongFocus,
+          MSG.settingsStrongFocusDesc,
+        )}
+        {renderAccessibilityToggle(
+          'underlineLinks',
+          MSG.settingsUnderlineLinks,
+          MSG.settingsUnderlineLinksDesc,
+        )}
+
+        <div className="u-flex-col u-gap-sm">
+          <span className="section-label">{MSG.settingsTextSizeLabel}</span>
+          <div className="strategy-list" role="radiogroup" aria-label={MSG.settingsTextSizeLabel}>
+            {TEXT_SIZE_STRATEGIES.map((option) => (
+              <div
+                key={option.id}
+                onClick={() => !isDeleting && patchAccessibility({ textSize: option.id })}
+                className={`strategy-option ${accessibility.textSize === option.id ? 'strategy-option-active' : ''}`}
+              >
+                <input
+                  type="radio"
+                  name="a11y-text-size"
+                  checked={accessibility.textSize === option.id}
+                  onChange={() => patchAccessibility({ textSize: option.id })}
+                  className="strategy-radio"
+                  disabled={isDeleting}
+                />
+                <div>
+                  <h5 className="strategy-option-title">{option.label}</h5>
+                  <p className="strategy-option-desc">{option.desc}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  const renderLegal = () => (
+    <div className="settings-panel-inner">
+      {renderSectionHeader(FileText, MSG.settingsLegalTitle, MSG.settingsLegalDesc, 'text-violet')}
+      <div className="settings-info-box">
+        <p className="settings-info-box-text">{MSG.settingsLegalBody}</p>
+        <LegalLinks className="auth-legal-links auth-legal-links--stacked" />
+      </div>
+    </div>
+  );
+
+  const renderAccount = () => (
+    <div className="settings-panel-inner settings-panel-inner--danger">
+      {renderSectionHeader(Trash2, MSG.settingsAccountTitle, MSG.settingsAccountDesc, 'text-rose')}
+      <div className="settings-stack">
+        <div className="settings-info-box">
+          <h4 className="settings-info-box-title">{MSG.settingsAccountDataTitle}</h4>
+          <p className="settings-info-box-text">{MSG.settingsAccountDataDesc}</p>
+        </div>
+
+        <ChangePasswordForm userId={session?.user?.id} />
+
+        {renderPlannedRoadmap(MSG.settingsPlannedAccountTitle, ACCOUNT_PLANNED)}
+
+        <span className="section-label">{MSG.settingsAccountTitle}</span>
+      </div>
+      <div className="destructive-actions">
+        <button
+          type="button"
+          onClick={handleDeviceWipe}
+          className="btn btn-secondary btn-wipe-outline"
+        >
+          {MSG.settingsWipeDevice}
+        </button>
+        <button
+          type="button"
+          onClick={requestAccountDeletion}
+          disabled={isDeleting}
+          className="btn btn-danger btn-sm"
+        >
+          {MSG.settingsDeleteAccount}
+        </button>
+      </div>
+    </div>
+  );
+
+  const buildErrorReportContext = () => {
+    if (!errorReportIncludeContext) return {};
+    const { pathname, hash } = window.location;
+    return {
+      deviceId: currentUser?.keys?.deviceId ?? null,
+      fingerprint: currentUser?.keys?.fingerprint ?? null,
+      userAgent: navigator.userAgent,
+      urlPath: `${pathname}${hash}`,
+      theme: document.documentElement.getAttribute('data-a11y-theme') ?? 'dark',
+      accessibility: {
+        lightMode: Boolean(accessibility?.lightMode),
+        reduceMotion: Boolean(accessibility?.reduceMotion),
+        textSize: accessibility?.textSize ?? 'default',
+      },
+      apiEnabled: isApiEnabled(),
+    };
+  };
+
+  const handleSubmitErrorReport = async (e) => {
+    e.preventDefault();
+    const description = errorReportText.trim();
+    if (description.length < 10) {
+      toast(MSG.diagnosticsErrorReportTooShort, { type: 'error' });
+      return;
+    }
+
+    setErrorReportSubmitting(true);
+    const context = buildErrorReportContext();
+    try {
+      if (isApiEnabled()) {
+        await submitErrorReport(description, context);
+        toast(MSG.diagnosticsErrorReportSuccess, { type: 'success' });
+      } else {
+        queueErrorReportLocally({ description, context });
+        toast(MSG.diagnosticsErrorReportSavedLocally, { type: 'info' });
+      }
+      setErrorReportText('');
+    } catch {
+      queueErrorReportLocally({ description, context });
+      toast(MSG.diagnosticsErrorReportSavedLocally, { type: 'info' });
+      setErrorReportText('');
+    } finally {
+      setErrorReportSubmitting(false);
+    }
+  };
+
+  const renderDiagnostics = () => (
+    <div className="settings-panel-inner">
+      {renderSectionHeader(HelpCircle, MSG.settingsDiagnosticsTitle, MSG.diagnosticsIntro, 'text-cyan')}
+
+      <form className="diagnostics-error-form" onSubmit={handleSubmitErrorReport}>
+        <div className="settings-info-box diagnostics-error-form-intro">
+          <h4 className="settings-info-box-title">{MSG.diagnosticsErrorReportTitle}</h4>
+          <p className="settings-info-box-text">{MSG.diagnosticsErrorReportDesc}</p>
+        </div>
+
+        <label className="profile-field">
+          <span className="visually-hidden">{MSG.diagnosticsErrorReportTitle}</span>
+          <textarea
+            className="profile-input profile-textarea diagnostics-error-textarea"
+            value={errorReportText}
+            onChange={(e) => setErrorReportText(e.target.value)}
+            placeholder={MSG.diagnosticsErrorReportPlaceholder}
+            rows={4}
+            maxLength={4000}
+            disabled={isDeleting || errorReportSubmitting}
+            required
+            minLength={10}
+          />
+        </label>
+
+        <div className="settings-row settings-row--compact">
+          <div>
+            <h4 className="settings-row-label">{MSG.diagnosticsErrorReportIncludeContext}</h4>
+            <p className="settings-row-desc">{MSG.diagnosticsErrorReportIncludeContextDesc}</p>
+          </div>
+          <label className="form-toggle">
+            <input
+              type="checkbox"
+              checked={errorReportIncludeContext}
+              onChange={() => setErrorReportIncludeContext(!errorReportIncludeContext)}
+              disabled={isDeleting || errorReportSubmitting}
+            />
+            <span className="form-toggle-slider" />
+          </label>
+        </div>
+
+        <div className="settings-row settings-row--compact">
+          <div>
+            <h4 className="settings-row-label">{MSG.diagnosticsAutoErrorReportLabel}</h4>
+            <p className="settings-row-desc">{MSG.diagnosticsAutoErrorReportDesc}</p>
+          </div>
+          <label className="form-toggle">
+            <input
+              type="checkbox"
+              checked={autoErrorReport}
+              onChange={() => {
+                const next = !autoErrorReport;
+                setAutoErrorReport(next);
+                setAutoErrorReportEnabled(next);
+              }}
+              disabled={isDeleting || errorReportSubmitting}
+            />
+            <span className="form-toggle-slider" />
+          </label>
+        </div>
+
+        <button
+          type="submit"
+          className="btn btn-primary diagnostics-error-submit"
+          disabled={isDeleting || errorReportSubmitting || errorReportText.trim().length < 10}
+        >
+          <Bug className="icon-sm" />
+          {errorReportSubmitting
+            ? MSG.diagnosticsErrorReportSubmitting
+            : MSG.diagnosticsErrorReportSubmit}
+        </button>
+      </form>
+
+      {getAppSecurity().lockEnabled && !sensitiveUnlocked ? (
+        <SensitiveUnlock onUnlocked={() => setSensitiveUnlocked(true)} />
+      ) : (
+        currentUser?.keys && (
+          <div className="key-ring-box">
+            <div className="u-flex-col u-gap-sm">
+              <span className="key-ring-label">{MSG.privacyDeviceIdLabel}</span>
+              <pre className="key-ring-pre">{currentUser.keys.deviceId}</pre>
+            </div>
+            <div className="u-flex-col u-gap-sm">
+              <span className="key-ring-label">{MSG.privacyPublicKeyLabel}</span>
+              <pre className="key-ring-pre">{currentUser.keys.publicKey}</pre>
+            </div>
+            <div className="u-flex-col u-gap-sm">
+              <div className="key-ring-label-row">
+                <span className="key-ring-label">{MSG.privacyPrivateKeyLabel}</span>
+                <span className="metadata-badge badge-warning badge-sm">
+                  {MSG.privacyPrivateKeyBadge}
+                </span>
+              </div>
+              <pre className="key-ring-pre key-ring-pre-private">{currentUser.keys.privateKey}</pre>
+            </div>
+            <div className="key-fingerprint-row">
+              <div>
+                <span className="key-ring-label key-fingerprint-text">
+                  {MSG.privacyFingerprintLabel}
+                </span>
+                <span className="key-fingerprint-val">{currentUser.keys.fingerprint}</span>
+              </div>
+              <button
+                type="button"
+                onClick={generateNewKeys}
+                disabled={isDeleting}
+                className="btn btn-secondary btn-sm"
+              >
+                {MSG.rotateKeys}
+              </button>
+            </div>
+            <div className="warning-banner warning-banner--cyan">
+              <p className="warning-banner-text">{MSG.privacyKeyRingNote}</p>
+            </div>
+          </div>
+        )
+      )}
+    </div>
+  );
+
+  const sectionContent = {
+    discovery: renderDiscovery,
+    messaging: renderMessaging,
+    security: renderSecurity,
+    accessibility: renderAccessibility,
+    account: renderAccount,
+    legal: renderLegal,
+    diagnostics: renderDiagnostics,
   };
 
   return (
     <div className="page-stack">
       <div className="grid-section-header">
         <div>
-          <h2 className="grid-section-title">Privacy Control Center</h2>
-          <p className="grid-section-desc">
-            Manage your cryptographic profiles, server-side visibility, and deletion policies.
-          </p>
+          <h2 className="grid-section-title">{MSG.settingsPageTitle}</h2>
+          <p className="grid-section-desc">{MSG.privacyPageDesc}</p>
         </div>
       </div>
 
@@ -148,203 +757,50 @@ export default function PrivacyCenter({
               <ShieldAlert className="icon-md" />
             </div>
             <div>
-              <h4 className="countdown-title">Account Marked for Deletion</h4>
-              <p className="countdown-desc">
-                Your profile is completely hidden from other users. All location broadcasting and message handshakes are disabled. All data will be purged permanently from the server databases when the grace period expires.
-              </p>
+              <h4 className="countdown-title">{MSG.settingsDeletionBannerTitle}</h4>
+              <p className="countdown-desc">{MSG.settingsDeletionBannerDesc}</p>
             </div>
           </div>
-
           <div className="countdown-timer-box">
             <div className="countdown-timer-wrap">
-              <span className="countdown-label">Time Before Purge</span>
+              <span className="countdown-label">{MSG.settingsDeletionTimerLabel}</span>
               <span className="countdown-timer-val">{deletionTimer}</span>
             </div>
-
-            <button
-              onClick={cancelAccountDeletionLocal}
-              className="btn btn-restore"
-            >
-              <RotateCcw className="icon-sm" /> Restore Account
+            <button type="button" onClick={cancelAccountDeletionLocal} className="btn btn-restore">
+              <RotateCcw className="icon-sm" /> {MSG.settingsRestoreAccount}
             </button>
           </div>
         </div>
       )}
 
-      <div className="privacy-grid">
-        <div className="privacy-card">
-          <div className="privacy-card-header">
-            <Eye className="icon-md text-violet" />
-            <h3 className="privacy-card-title">Discovery & Location</h3>
-          </div>
-
-          <div className="settings-stack">
-            <div className="settings-row">
-              <div>
-                <h4 className="settings-row-label">Broadcast on Discovery Grid</h4>
-                <p className="settings-row-desc">
-                  Toggle grid visibility. Turning off makes you completely invisible to nearby matches.
-                </p>
-              </div>
-              <label className="form-toggle">
-                <input
-                  type="checkbox"
-                  checked={!stealthMode}
-                  onChange={() => setStealthMode(!stealthMode)}
-                  disabled={isDeleting}
-                />
-                <span className="form-toggle-slider" />
-              </label>
-            </div>
-
-            <div className="u-flex-col u-gap-sm">
-              <span className="section-label">Backend Distance Fuzzing Profile</span>
-
-              <div className="strategy-list">
-                {[
-                  { id: 'grid_snap', label: 'Grid Snapping (1km square snap)', desc: 'Aligns coordinates to grid squares to prevent trilateration.' },
-                  { id: 'jitter', label: 'Gaussian Jitter (random 500m offset)', desc: 'Adds random offsets server-side to mask precise readings.' },
-                  { id: 'distance_only', label: 'Broad Distance Bands Only', desc: 'Hides metrics, displaying broad bands ("Nearby", "Within 5km").' },
-                ].map((strategy) => (
-                  <div
-                    key={strategy.id}
-                    onClick={() => !isDeleting && setFuzzingStrategy(strategy.id)}
-                    className={`strategy-option ${fuzzingStrategy === strategy.id ? 'strategy-option-active' : ''}`}
-                  >
-                    <input
-                      type="radio"
-                      checked={fuzzingStrategy === strategy.id}
-                      onChange={() => {}}
-                      className="strategy-radio"
-                      disabled={isDeleting}
-                    />
-                    <div>
-                      <h5 className="strategy-option-title">{strategy.label}</h5>
-                      <p className="strategy-option-desc">{strategy.desc}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="privacy-card">
-          <div className="privacy-card-header">
-            <Key className="icon-md text-cyan" />
-            <h3 className="privacy-card-title">Key Ring</h3>
-          </div>
-
-          <div className="key-ring-box">
-            <div className="u-flex-col u-gap-sm">
-              <span className="key-ring-label">Active Public Key (DH-X25519)</span>
-              <pre className="key-ring-pre">{currentUser.keys.publicKey}</pre>
-            </div>
-
-            <div className="u-flex-col u-gap-sm">
-              <div className="key-ring-label-row">
-                <span className="key-ring-label">Local Private Key</span>
-                <span className="metadata-badge badge-warning badge-sm">NEVER SHARED</span>
-              </div>
-              <pre className="key-ring-pre key-ring-pre-private">
-                {currentUser.keys.privateKey.substring(0, 24)}**************************
-              </pre>
-            </div>
-
-            <div className="key-fingerprint-row">
-              <div>
-                <span className="key-ring-label key-fingerprint-text">Identity Key Fingerprint</span>
-                <span className="key-fingerprint-val">{currentUser.keys.fingerprint}</span>
-              </div>
-              <button
-                onClick={generateNewKeys}
-                disabled={isDeleting}
-                className="btn btn-secondary btn-sm"
-              >
-                Rotate Keys
-              </button>
-            </div>
-
-            <div className="warning-banner warning-banner--cyan">
-              <p className="warning-banner-text">
-                Key pairs are generated locally in your browser. The server coordinates handshakes but cannot read message contents.
-              </p>
-            </div>
-          </div>
-        </div>
-
-        <div className="privacy-card">
-          <div className="privacy-card-header">
-            <Lock className="icon-md text-emerald" />
-            <h3 className="privacy-card-title">App & Screen Security</h3>
-          </div>
-
-          <div className="settings-stack settings-stack--tight">
-            <div className="settings-row settings-row--compact">
-              <div>
-                <h4 className="settings-row-label">App Access PIN Lock</h4>
-                <p className="settings-row-desc">
-                  Requires inputting a security PIN whenever Aether wakes from background sleep.
-                </p>
-              </div>
-              <label className="form-toggle">
-                <input
-                  type="checkbox"
-                  checked={pinLockEnabled}
-                  onChange={() => setPinLockEnabled(!pinLockEnabled)}
-                  disabled={isDeleting}
-                />
-                <span className="form-toggle-slider" />
-              </label>
-            </div>
-
-            <div className="settings-row settings-row--flush">
-              <div>
-                <h4 className="settings-row-label">Private Album Screen Shield</h4>
-                <p className="settings-row-desc">
-                  Automatically blur private ephemeral albums when the browser loses active focus.
-                </p>
-              </div>
-              <label className="form-toggle">
-                <input
-                  type="checkbox"
-                  checked={albumScreenshotShield}
-                  onChange={() => setAlbumScreenshotShield(!albumScreenshotShield)}
-                  disabled={isDeleting}
-                />
-                <span className="form-toggle-slider" />
-              </label>
-            </div>
-          </div>
-        </div>
-
-        <div className="privacy-card destructive-panel">
-          <div className="privacy-card-header privacy-card-header--danger">
-            <Trash2 className="icon-md text-rose" />
-            <h3 className="privacy-card-title">Destruction Center</h3>
-          </div>
-
-          <p className="destructive-desc">
-            Perform safety-clears of local session information or trigger complete profile erasure requests from the server system.
-          </p>
-
-          <div className="destructive-actions">
+      <div className="settings-layout">
+        <nav className="settings-nav glass-panel" aria-label="Settings sections">
+          {SETTINGS_SECTIONS.map(({ id, label, icon: Icon }) => (
             <button
-              onClick={handleDeviceWipe}
-              className="btn btn-secondary btn-wipe-outline"
+              key={id}
+              type="button"
+              className={`settings-nav-btn ${activeSection === id ? 'settings-nav-btn--active' : ''}`}
+              onClick={() => {
+                if (id !== 'diagnostics') {
+                  revokeSensitiveUnlock();
+                  setSensitiveUnlocked(false);
+                }
+                setActiveSection(id);
+              }}
+              aria-current={activeSection === id ? 'page' : undefined}
             >
-              Clear Cache & Wipe Device Keys
+              <Icon className="icon-sm" />
+              <span>{label}</span>
             </button>
+          ))}
+        </nav>
 
-            <button
-              onClick={requestAccountDeletion}
-              disabled={isDeleting}
-              className="btn btn-danger btn-sm"
-            >
-              Delete Account from Database (30-day grace)
-            </button>
-          </div>
-        </div>
+        <section className="settings-panel privacy-card" aria-labelledby="settings-panel-title">
+          <h3 id="settings-panel-title" className="visually-hidden">
+            {SETTINGS_SECTIONS.find((s) => s.id === activeSection)?.label}
+          </h3>
+          {sectionContent[activeSection]?.()}
+        </section>
       </div>
     </div>
   );

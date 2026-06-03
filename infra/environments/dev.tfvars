@@ -9,6 +9,7 @@ tags = {
   cost_center = "demo"
 }
 
-enable_backend = false
+# Requires: export TF_VAR_postgres_admin_password='...' (12+ chars) on terraform apply
+enable_backend = true
 enable_cosmos  = false
 enable_redis   = false

@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { 
   Send, Shield, Lock, Trash2, ShieldAlert,
-  Image, Info, ArrowLeft, Clock, Eye, EyeOff, Camera,
+  Image, ArrowLeft, Clock, Camera, MoreVertical,
 } from 'lucide-react';
 import { 
   encryptMessage, decryptMessage, 
@@ -11,13 +11,38 @@ import {
 } from '../utils/crypto';
 import { inspectImageMetadata, stripImageMetadata } from '../utils/exif';
 import {
+  blockUser,
   ensureConversation,
+  fetchMessages,
   fetchPublicKeys,
   isApiEnabled,
+  markConversationRead,
+  reportUser,
   requestUploadSas,
   sendMessage,
+  unblockUser,
 } from '../api/client';
+import { useToast } from '../context/ToastContext';
+import { loadSession } from '../utils/authStorage';
+import {
+  blockUserLocal,
+  isBlockedLocal,
+  unblockUserLocal,
+} from '../utils/blockStorage';
+import { devPeerKeysFor, resolvePeerApiId } from '../utils/devPeerKeys';
+import { MSG } from '../utils/userMessages';
 import { useRealtimeMessages } from '../hooks/useRealtimeMessages';
+import { useAlbumScreenshotGuard } from '../hooks/useAlbumScreenshotGuard';
+import {
+  loadStoredConversations,
+  saveStoredConversations,
+  SEED_CONVERSATIONS,
+} from '../utils/chatConversationsStorage';
+import {
+  isOutgoingReadByPeer,
+  markChatIncomingRead,
+  markOutgoingReadByPeer,
+} from '../utils/readReceiptStorage';
 
 /**
  * ChatRoom Component
@@ -31,12 +56,18 @@ import { useRealtimeMessages } from '../hooks/useRealtimeMessages';
  * - wire-inspector / wire-packet-box
  * - exif-panel / exif-meta-fields / custom-range
  */
-export default function ChatRoom({ 
-  currentUser, 
+export default function ChatRoom({
+  currentUser,
   activeChatProfile,
   startWithAlbum = false,
   albumScreenshotShield = true,
+  myProfile = null,
+  defaultSelfDestructSeconds = 0,
+  readReceiptsEnabled = false,
 }) {
+  const { toast, confirm } = useToast();
+  const albumEnabled =
+    myProfile?.hasSecureAlbum !== false && myProfile?.allowAlbumMediaUpload !== false;
   // Navigation / View states
   const [selectedChat, setSelectedChat] = useState(null);
   const [showAlbum, setShowAlbum] = useState(false);
@@ -44,7 +75,11 @@ export default function ChatRoom({
 
   // Message and timing states
   const [inputText, setInputText] = useState('');
-  const [selfDestructSeconds, setSelfDestructSeconds] = useState(0);
+  const [selfDestructSeconds, setSelfDestructSeconds] = useState(defaultSelfDestructSeconds);
+
+  useEffect(() => {
+    setSelfDestructSeconds(defaultSelfDestructSeconds);
+  }, [defaultSelfDestructSeconds]);
   const [lastTransmittedPacket, setLastTransmittedPacket] = useState(null);
 
   // EXIF Inspector states
@@ -55,31 +90,46 @@ export default function ChatRoom({
 
   // Screen shield defocus simulator state
   const [isWindowFocused, setIsWindowFocused] = useState(true);
-  const [forceShield, setForceShield] = useState(false);
+  const [shieldReason, setShieldReason] = useState(null);
+
+  const handleCaptureAttempt = useCallback(() => {
+    setShieldReason('screenshot');
+    toast(MSG.albumScreenshotWarning, { type: 'warning' });
+  }, [toast]);
+
+  const { forceShield, resetForceShield } = useAlbumScreenshotGuard({
+    enabled: albumScreenshotShield,
+    active: showAlbum,
+    onCaptureAttempt: handleCaptureAttempt,
+  });
   const [groupKey, setGroupKey] = useState(null);
   const [conversationId, setConversationId] = useState(null);
   const [peerKeyCache, setPeerKeyCache] = useState({});
+  const [sendError, setSendError] = useState(null);
+  const [receiptTick, setReceiptTick] = useState(0);
+  const [serverReadIds, setServerReadIds] = useState({});
+  const [peerBlocked, setPeerBlocked] = useState(false);
+  const [safetyMenuOpen, setSafetyMenuOpen] = useState(false);
+  const [reportOpen, setReportOpen] = useState(false);
+  const [reportReason, setReportReason] = useState('');
+  const [reportDetails, setReportDetails] = useState('');
+
+  const cachePeerKeys = (peerId, keys) => {
+    setPeerKeyCache((prev) => ({ ...prev, [peerId]: keys }));
+    return keys;
+  };
 
   useEffect(() => {
     generateGroupKey('group_city').then(setGroupKey);
   }, []);
 
-  // Local Chat Database (Simulated client device database)
-  const [conversations, setConversations] = useState({
-    julian: [
-      { id: 1, sender: 'julian', text: "Hey! Are you nearby?", timestamp: '09:05 AM', isE2EE: true },
-      { id: 2, sender: 'me', text: "Yeah, around the lower east side. Your profile says within 1km.", timestamp: '09:06 AM', isE2EE: true },
-      { id: 3, sender: 'julian', text: "Cool, I snapped my grid fuzzing to 1km too. Keep things private until we meet.", timestamp: '09:07 AM', isE2EE: true }
-    ],
-    alex: [
-      { id: 1, sender: 'alex', text: "Did you check out that security panel?", timestamp: 'Yesterday', isE2EE: true },
-      { id: 2, sender: 'me', text: "Yes! The EXIF stripper works perfectly.", timestamp: 'Yesterday', isE2EE: true }
-    ],
-    group_city: [
-      { id: 1, sender: 'alex', text: "Welcome to the City Safe Haven Chat.", timestamp: '08:45 AM', isGroup: true, keyId: 'GRP-KID-105' },
-      { id: 2, sender: 'julian', text: "Encrypting with rotated keys. All clear.", timestamp: '08:48 AM', isGroup: true, keyId: 'GRP-KID-105' }
-    ]
-  });
+  const [conversations, setConversations] = useState(() =>
+    loadStoredConversations(SEED_CONVERSATIONS),
+  );
+
+  useEffect(() => {
+    saveStoredConversations(conversations);
+  }, [conversations]);
 
   // Secure Album Photos Database
   const [albumPhotos, setAlbumPhotos] = useState([
@@ -91,13 +141,34 @@ export default function ChatRoom({
   const selectedChatIdRef = useRef(null);
 
   const loadPeerKeys = async (peerId) => {
-    if (!isApiEnabled()) return [];
-    try {
-      const keys = await fetchPublicKeys(peerId);
-      setPeerKeyCache((prev) => ({ ...prev, [peerId]: keys }));
-      return keys;
-    } catch {
-      return [];
+    const apiPeerId = resolvePeerApiId(peerId);
+    if (isApiEnabled()) {
+      try {
+        const keys = await fetchPublicKeys(apiPeerId);
+        if (resolvePeerPublicJwk(keys)) {
+          return cachePeerKeys(peerId, keys);
+        }
+      } catch (err) {
+        console.warn('fetchPublicKeys failed', err);
+      }
+    }
+    const devKeys = devPeerKeysFor(peerId) || devPeerKeysFor(apiPeerId);
+    if (devKeys.length) return cachePeerKeys(peerId, devKeys);
+    return [];
+  };
+
+  const selectDirectChat = async (id, name) => {
+    setSelectedChat({ id, name, isGroup: false });
+    setShowAlbum(false);
+    setSendError(null);
+    setSafetyMenuOpen(false);
+    setReportOpen(false);
+    const apiPeer = resolvePeerApiId(id);
+    setPeerBlocked(isBlockedLocal(apiPeer) || isBlockedLocal(id));
+    if (isApiEnabled()) {
+      const convId = await ensureConversation(apiPeer);
+      setConversationId(convId);
+      await loadPeerKeys(id);
     }
   };
 
@@ -139,6 +210,86 @@ export default function ChatRoom({
     selectedChatIdRef.current = selectedChat?.id ?? null;
   }, [selectedChat?.id]);
 
+  const activeMessages = selectedChat ? conversations[selectedChat.id] || [] : [];
+
+  useEffect(() => {
+    if (!readReceiptsEnabled || !selectedChat?.id || selectedChat.isGroup) return undefined;
+
+    const chatId = selectedChat.id;
+    const msgs = conversations[chatId] ?? [];
+    const incomingIds = msgs.filter((m) => m.sender !== 'me').map((m) => m.id);
+    if (incomingIds.length) {
+      markChatIncomingRead(chatId, incomingIds);
+    }
+
+    if (isApiEnabled() && conversationId) {
+      const apiIncoming = incomingIds.filter((id) => typeof id === 'string' && id.includes('-'));
+      if (apiIncoming.length) {
+        markConversationRead(conversationId, apiIncoming).catch((err) =>
+          console.warn('markConversationRead failed', err),
+        );
+      }
+    }
+
+    if (isApiEnabled()) {
+      setReceiptTick((t) => t + 1);
+      return undefined;
+    }
+
+    const timers = msgs
+      .filter((m) => m.sender === 'me')
+      .map((m, index) =>
+        window.setTimeout(() => {
+          markOutgoingReadByPeer(chatId, m.id);
+          setReceiptTick((t) => t + 1);
+        }, 1200 + index * 500),
+      );
+
+    setReceiptTick((t) => t + 1);
+    return () => timers.forEach((id) => window.clearTimeout(id));
+  }, [
+    readReceiptsEnabled,
+    selectedChat?.id,
+    selectedChat?.isGroup,
+    activeMessages.length,
+    conversationId,
+  ]);
+
+  useEffect(() => {
+    if (!readReceiptsEnabled || !isApiEnabled() || !conversationId || selectedChat?.isGroup) {
+      return undefined;
+    }
+
+    const myOid = loadSession()?.user?.id;
+    const syncReceipts = async () => {
+      try {
+        const messages = await fetchMessages(conversationId);
+        const readMap = {};
+        for (const msg of messages) {
+          if (msg.sender_entra_oid === myOid && msg.readBy?.length) {
+            readMap[msg.id] = true;
+            markOutgoingReadByPeer(selectedChat.id, msg.id);
+          }
+        }
+        setServerReadIds((prev) => ({ ...prev, ...readMap }));
+        setReceiptTick((t) => t + 1);
+
+        const incomingIds = messages
+          .filter((m) => m.sender_entra_oid !== myOid)
+          .map((m) => m.id);
+        if (incomingIds.length) {
+          await markConversationRead(conversationId, incomingIds);
+        }
+      } catch (err) {
+        console.warn('Receipt sync failed', err);
+      }
+    };
+
+    syncReceipts();
+    const timer = window.setInterval(syncReceipts, 4000);
+    return () => window.clearInterval(timer);
+  }, [readReceiptsEnabled, conversationId, selectedChat?.id, selectedChat?.isGroup]);
+
   useRealtimeMessages(conversationId, (envelope) => {
     const chatKey = selectedChatIdRef.current;
     if (!chatKey || selectedChat?.isGroup) return;
@@ -156,33 +307,33 @@ export default function ChatRoom({
           publicKey: activeChatProfile.publicKey,
           isGroup: isGroup,
         });
-        if (!isGroup && isApiEnabled()) {
-          const convId = await ensureConversation(activeChatProfile.id);
-          setConversationId(convId);
+        if (!isGroup) {
+          if (isApiEnabled()) {
+            const convId = await ensureConversation(resolvePeerApiId(activeChatProfile.id));
+            setConversationId(convId);
+          }
           await loadPeerKeys(activeChatProfile.id);
         }
         if (startWithAlbum) setShowAlbum(true);
       } else {
-        setSelectedChat({
-          id: 'julian',
-          name: 'Julian',
-          publicKey: null,
-          isGroup: false,
-        });
-        if (isApiEnabled()) {
-          const convId = await ensureConversation('seed-julian');
-          setConversationId(convId);
-          await loadPeerKeys('seed-julian');
-        }
+        await selectDirectChat('julian', 'Julian');
       }
     };
     setupChat();
   }, [activeChatProfile, startWithAlbum]);
 
-  // Screen shield browser defocus listeners
   useEffect(() => {
-    const handleFocus = () => setIsWindowFocused(true);
-    const handleBlur = () => setIsWindowFocused(false);
+    const handleFocus = () => {
+      setIsWindowFocused(true);
+      resetForceShield();
+      setShieldReason(null);
+    };
+    const handleBlur = () => {
+      setIsWindowFocused(false);
+      if (showAlbum && albumScreenshotShield) {
+        setShieldReason('defocus');
+      }
+    };
 
     window.addEventListener('focus', handleFocus);
     window.addEventListener('blur', handleBlur);
@@ -190,7 +341,11 @@ export default function ChatRoom({
       window.removeEventListener('focus', handleFocus);
       window.removeEventListener('blur', handleBlur);
     };
-  }, []);
+  }, [showAlbum, albumScreenshotShield, resetForceShield]);
+
+  useEffect(() => {
+    if (!showAlbum) setShieldReason(null);
+  }, [showAlbum]);
 
   // Auto scroll messages to bottom
   useEffect(() => {
@@ -246,10 +401,83 @@ export default function ChatRoom({
     return () => clearInterval(interval);
   }, [conversations]);
 
+  const peerApiId = selectedChat ? resolvePeerApiId(selectedChat.id) : null;
+
+  const handleToggleBlock = async () => {
+    if (!selectedChat || selectedChat.isGroup) return;
+    const peerId = peerApiId ?? selectedChat.id;
+    if (peerBlocked) {
+      const approved = await confirm(MSG.chatUnblockConfirm, {
+        confirmLabel: MSG.chatUnblockConfirmBtn,
+      });
+      if (!approved) return;
+      if (isApiEnabled()) {
+        try {
+          await unblockUser(peerId);
+        } catch (err) {
+          toast(err?.message ?? MSG.authFailed, { type: 'error' });
+          return;
+        }
+      }
+      unblockUserLocal(peerId);
+      unblockUserLocal(selectedChat.id);
+      setPeerBlocked(false);
+      toast(MSG.chatUnblockConfirmBtn, { type: 'success' });
+    } else {
+      const approved = await confirm(MSG.chatBlockConfirm, {
+        confirmLabel: MSG.chatBlockConfirmBtn,
+      });
+      if (!approved) return;
+      if (isApiEnabled()) {
+        try {
+          await blockUser(peerId);
+        } catch (err) {
+          toast(err?.message ?? MSG.authFailed, { type: 'error' });
+          return;
+        }
+      }
+      blockUserLocal(peerId);
+      blockUserLocal(selectedChat.id);
+      setPeerBlocked(true);
+      toast(MSG.chatBlockConfirmBtn, { type: 'info' });
+    }
+    setSafetyMenuOpen(false);
+  };
+
+  const handleSubmitReport = async (e) => {
+    e.preventDefault();
+    if (!selectedChat || selectedChat.isGroup) return;
+    const peerId = peerApiId ?? selectedChat.id;
+    try {
+      if (isApiEnabled()) {
+        await reportUser(peerId, {
+          reason: reportReason.trim(),
+          details: reportDetails.trim(),
+          conversationId,
+        });
+      }
+      toast(MSG.chatReportSuccess, { type: 'success' });
+      setReportOpen(false);
+      setReportReason('');
+      setReportDetails('');
+      setSafetyMenuOpen(false);
+    } catch (err) {
+      toast(err?.message ?? MSG.authFailed, { type: 'error' });
+    }
+  };
+
+  const isOutgoingRead = (msgId) =>
+    Boolean(serverReadIds[msgId] || isOutgoingReadByPeer(selectedChat?.id, msgId));
+
   const handleSendMessage = async (e) => {
     if (e) e.preventDefault();
     if (!inputText.trim() || !selectedChat) return;
     if (selectedChat.isGroup && !groupKey) return;
+    if (!selectedChat.isGroup && peerBlocked) {
+      setSendError(MSG.chatBlockedSend);
+      return;
+    }
+    setSendError(null);
 
     const now = Date.now();
     const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -286,35 +514,36 @@ export default function ChatRoom({
       const peerKeys = peerKeyCache[chatKey] ?? (await loadPeerKeys(chatKey));
       const peerJwk = resolvePeerPublicJwk(peerKeys);
       if (!peerJwk) {
-        newMsg.text = '[Cannot send: peer public key unavailable]';
-      } else {
-        const packet = await encryptMessage(
-          inputText,
-          currentUser.keys.privateKeyJwk,
-          peerJwk,
-        );
-        setLastTransmittedPacket({
-          header: {
-            version: 'Aether-Direct-E2EE-2.0',
-            timestamp: new Date().toISOString(),
-            algorithm: 'ECDH-X25519-AES-256-GCM',
-          },
-          payload: packet,
-        });
+        setSendError(MSG.sendNoPeerKey);
+        return;
+      }
 
-        if (isApiEnabled() && conversationId && peerJwk) {
-          try {
-            await sendMessage(conversationId, {
-              ...packet,
-              keyId: currentUser.keys.deviceId,
-              expiresAt,
-            });
-          } catch (err) {
-            console.warn('Send to API failed', err);
-          }
-        } else if (!isApiEnabled()) {
-          setTimeout(() => simulatePartnerResponse(chatKey), 2500);
+      const packet = await encryptMessage(
+        inputText,
+        currentUser.keys.privateKeyJwk,
+        peerJwk,
+      );
+      setLastTransmittedPacket({
+        header: {
+          version: 'Aether-Direct-E2EE-2.0',
+          timestamp: new Date().toISOString(),
+          algorithm: 'ECDH-X25519-AES-256-GCM',
+        },
+        payload: packet,
+      });
+
+      if (isApiEnabled() && conversationId) {
+        try {
+          await sendMessage(conversationId, {
+            ...packet,
+            keyId: currentUser.keys.deviceId,
+            expiresAt,
+          });
+        } catch (err) {
+          console.warn('Send to API failed', err);
         }
+      } else if (!isApiEnabled()) {
+        setTimeout(() => simulatePartnerResponse(chatKey), 2500);
       }
     }
 
@@ -322,17 +551,18 @@ export default function ChatRoom({
       ...prev,
       [chatKey]: [...(prev[chatKey] ?? []), newMsg],
     }));
+    if (readReceiptsEnabled && !selectedChat.isGroup) {
+      window.setTimeout(() => {
+        markOutgoingReadByPeer(chatKey, newMsg.id);
+        setReceiptTick((t) => t + 1);
+      }, 2200);
+    }
     setInputText('');
   };
 
   const simulatePartnerResponse = async (chatKey) => {
-    const messages = [
-      'Message received securely. Key fingerprint matches.',
-      'My client stripped the JPEG headers on that portrait as well.',
-      'Sounds good! Talk soon.',
-      'Got it. Self-destructing text works nicely.',
-    ];
-    const text = messages[Math.floor(Math.random() * messages.length)];
+    const text =
+      MSG.simulateResponses[Math.floor(Math.random() * MSG.simulateResponses.length)];
     const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
     setConversations((prev) => ({
@@ -419,7 +649,7 @@ export default function ChatRoom({
           {
             id: Date.now(),
             sender: 'me',
-            text: `📷 Shared a high-quality secure photo to Album. (EXIF metadata stripped. Quality slider: ${compressionQuality}%)`,
+            text: MSG.photoShared(compressionQuality),
             timestamp,
             isE2EE: true
           }
@@ -468,8 +698,15 @@ export default function ChatRoom({
     );
   };
 
-  const activeMessages = conversations[selectedChat?.id] || [];
-  const isShieldActive = albumScreenshotShield && (!isWindowFocused || forceShield);
+  const isShieldActive =
+    showAlbum && albumScreenshotShield && (!isWindowFocused || forceShield);
+
+  const shieldCoverDesc =
+    shieldReason === 'screenshot' || forceShield
+      ? MSG.albumShieldDescScreenshot
+      : !isWindowFocused
+        ? MSG.albumShieldDescDefocus
+        : MSG.albumShieldDesc;
 
   return (
     <div className="chat-layout">
@@ -478,13 +715,13 @@ export default function ChatRoom({
       <div className={`chat-sidebar glass-panel ${selectedChat ? 'chat-sidebar--hidden' : ''}`}>
         <div className="sidebar-header">
           <h3 className="sidebar-title">Active Contacts</h3>
-          <p className="sidebar-desc">Local key exchange established</p>
+          <p className="sidebar-desc">{MSG.chatSidebarDesc}</p>
         </div>
         
         <div className="contact-list custom-scrollbar">
           {/* Contact 1 */}
           <button
-            onClick={() => { setSelectedChat({ id: 'julian', name: 'Julian', isGroup: false }); setShowAlbum(false); }}
+            onClick={() => selectDirectChat('julian', 'Julian')}
             className={`contact-btn ${selectedChat?.id === 'julian' ? 'contact-btn-active' : ''}`}
           >
             <div className="contact-avatar contact-avatar--violet">
@@ -495,13 +732,12 @@ export default function ChatRoom({
                 <span className="status-indicator status-online" />
                 <span className="contact-name">Julian</span>
               </div>
-              <p className="contact-sub">E2E Session Active</p>
             </div>
           </button>
 
           {/* Contact 2 */}
           <button
-            onClick={() => { setSelectedChat({ id: 'alex', name: 'Alex', isGroup: false }); setShowAlbum(false); }}
+            onClick={() => selectDirectChat('alex', 'Alex')}
             className={`contact-btn ${selectedChat?.id === 'alex' ? 'contact-btn-active' : ''}`}
           >
             <div className="contact-avatar contact-avatar--cyan">
@@ -512,7 +748,6 @@ export default function ChatRoom({
                 <span className="status-indicator status-online" />
                 <span className="contact-name">Alex</span>
               </div>
-              <p className="contact-sub">E2E Session Active</p>
             </div>
           </button>
 
@@ -529,7 +764,6 @@ export default function ChatRoom({
                 <span className="status-indicator status-online u-animate-pulse" />
                 <span className="contact-name">City Safe Haven</span>
               </div>
-              <p className="contact-sub">Rotating keys active</p>
             </div>
           </button>
         </div>
@@ -552,19 +786,17 @@ export default function ChatRoom({
               <h3 className="chat-header-name">
                 {selectedChat?.name}
                 <span className="metadata-badge badge-success metadata-badge--xs">
-                  <Lock className="icon-xs" /> E2EE
+                  <Lock className="icon-xs" /> {MSG.chatEncryptedBadge}
                 </span>
               </h3>
               <p className="chat-header-fingerprint">
-                {selectedChat?.isGroup 
-                  ? 'Key Ring ID: GRP-KID-105 · Rotates dynamically' 
-                  : `Peer Key fingerprint: ${(selectedChat?.publicKey ?? currentUser.keys.publicKey ?? '').slice(0, 19)}...`}
+                {selectedChat?.isGroup ? MSG.chatGroupSubtitle : MSG.chatDirectSubtitle}
               </p>
             </div>
           </div>
 
           <div className="chat-header-actions">
-            {!selectedChat?.isGroup && (
+            {!selectedChat?.isGroup && albumEnabled && (
               <button
                 onClick={() => setShowAlbum(!showAlbum)}
                 className={`chat-header-action-btn ${showAlbum ? 'chat-header-action-btn-active' : ''}`}
@@ -573,14 +805,40 @@ export default function ChatRoom({
                 {showAlbum ? 'View Messages' : 'Private Album'}
               </button>
             )}
-            
-            <button
-              onClick={() => setShowWireInspector(!showWireInspector)}
-              className={`chat-header-action-btn ${showWireInspector ? 'chat-header-action-btn-active' : ''}`}
-            >
-              <Info className="icon-sm" />
-              Wire View
-            </button>
+            {!selectedChat?.isGroup && (
+              <div className="chat-safety-menu-wrap">
+                <button
+                  type="button"
+                  className="chat-header-action-btn chat-header-action-btn--icon"
+                  aria-expanded={safetyMenuOpen}
+                  aria-label={MSG.chatBlockUser}
+                  onClick={() => setSafetyMenuOpen((o) => !o)}
+                >
+                  <MoreVertical className="icon-sm" />
+                </button>
+                {safetyMenuOpen && (
+                  <div className="chat-safety-menu glass-panel">
+                    <button
+                      type="button"
+                      className="chat-safety-menu-item"
+                      onClick={handleToggleBlock}
+                    >
+                      {peerBlocked ? MSG.chatUnblockUser : MSG.chatBlockUser}
+                    </button>
+                    <button
+                      type="button"
+                      className="chat-safety-menu-item chat-safety-menu-item--report"
+                      onClick={() => {
+                        setReportOpen(true);
+                        setSafetyMenuOpen(false);
+                      }}
+                    >
+                      {MSG.chatReportUser}
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
 
@@ -608,27 +866,83 @@ export default function ChatRoom({
                         <span className="chat-bubble-time">{msg.timestamp}</span>
                         {msg.expiresAt && (
                           <span className="chat-bubble-destruct">
-                            <Clock className="icon-xs" /> Expiring
+                            <Clock className="icon-xs" /> Expiring {msg.expiresAt.split('T')[1].split('.')[0]}
                           </span>
                         )}
                         {msg.isE2EE && (
                           <span className="chat-bubble-security">
-                            <Lock className="icon-xs" /> Secure E2E
+                            <Lock className="icon-xs" />
                           </span>
                         )}
+                        {readReceiptsEnabled &&
+                          msg.sender === 'me' &&
+                          !selectedChat?.isGroup && (
+                            <span
+                              className={`chat-receipt-status ${
+                                isOutgoingRead(msg.id) ? 'chat-receipt-status--read' : ''
+                              }`}
+                            >
+                              {receiptTick >= 0 &&
+                                (isOutgoingRead(msg.id)
+                                  ? MSG.chatReceiptRead
+                                  : MSG.chatReceiptDelivered)}
+                            </span>
+                          )}
                       </div>
                     </div>
                   ))}
                   <div ref={messagesEndRef} />
                 </div>
 
+                {peerBlocked && !selectedChat?.isGroup && (
+                  <p className="warning-banner-text chat-inline-warning">{MSG.chatBlockedBanner}</p>
+                )}
+
+                {sendError && (
+                  <p className="warning-banner-text chat-inline-warning">
+                    {sendError}
+                  </p>
+                )}
+
+                {reportOpen && !selectedChat?.isGroup && (
+                  <form className="chat-report-form glass-panel" onSubmit={handleSubmitReport}>
+                    <h4 className="settings-info-box-title">{MSG.chatReportTitle}</h4>
+                    <label className="profile-field">
+                      <span className="profile-field-label">{MSG.chatReportReason}</span>
+                      <input
+                        className="profile-input"
+                        value={reportReason}
+                        onChange={(e) => setReportReason(e.target.value)}
+                        required
+                      />
+                    </label>
+                    <label className="profile-field">
+                      <span className="profile-field-label">{MSG.chatReportDetails}</span>
+                      <textarea
+                        className="profile-input profile-textarea"
+                        rows={2}
+                        value={reportDetails}
+                        onChange={(e) => setReportDetails(e.target.value)}
+                      />
+                    </label>
+                    <div className="chat-report-form-actions">
+                      <button type="button" className="btn btn-secondary btn-sm" onClick={() => setReportOpen(false)}>
+                        {MSG.cancel}
+                      </button>
+                      <button type="submit" className="btn btn-primary btn-sm">
+                        {MSG.chatReportSubmit}
+                      </button>
+                    </div>
+                  </form>
+                )}
+
                 {/* Message input triggers */}
                 <form onSubmit={handleSendMessage} className="chat-input-form">
                   
-                  {/* Self destruct timer options */}
+                  {/* Media Timer options */}
                   <div className="destruct-timing-bar">
                     <span className="destruct-timing-label">
-                      <Clock className="icon-sm destruct-label-icon" /> Ephemeral Timer:
+                      <Clock className="icon-sm destruct-label-icon" />Media Timer:
                     </span>
                     {[
                       { val: 0, label: 'Off' },
@@ -648,7 +962,7 @@ export default function ChatRoom({
                   </div>
 
                   <div className="chat-input-row">
-                    <label className="chat-media-btn" title="Upload Secure Photo">
+                    <label className="chat-media-btn" title="Upload Photo">
                       <input 
                         type="file" 
                         accept="image/jpeg,image/png" 
@@ -662,7 +976,7 @@ export default function ChatRoom({
                       type="text"
                       value={inputText}
                       onChange={(e) => setInputText(e.target.value)}
-                      placeholder={selectedChat?.isGroup ? "Send secure broadcast to group..." : "Write end-to-end encrypted message..."}
+                      placeholder={selectedChat?.isGroup ? "Send message to group..." : "Write message..."}
                       className="chat-input-field"
                     />
                     
@@ -678,33 +992,36 @@ export default function ChatRoom({
                 <div className="album-header">
                   <div>
                     <h4 className="album-title">Private Album</h4>
-                    <p className="album-desc">Blurs instantly when loses focus to prevent screenshots.</p>
+                    <p className="album-desc">
+                      {albumScreenshotShield
+                        ? MSG.albumShieldDesc
+                        : MSG.settingsAlbumShieldDesc}
+                    </p>
                   </div>
-                  
-                  <button 
-                    onClick={() => setForceShield(!forceShield)}
-                    className="chat-header-action-btn btn-xs"
-                  >
-                    {forceShield ? <EyeOff className="icon-sm" /> : <Eye className="icon-sm" />}
-                    {forceShield ? 'Unlock Shield' : 'Test Blur Shield'}
-                  </button>
+                  {albumScreenshotShield && (
+                    <span className="metadata-badge badge-warning badge-sm album-shield-badge">
+                      <ShieldAlert className="icon-xs" />
+                      {MSG.albumProtectionOn}
+                    </span>
+                  )}
                 </div>
 
-                <div className="album-viewport custom-scrollbar">
-                  
-                  {/* Defocus Security Cover */}
+                <div
+                  className="album-viewport custom-scrollbar"
+                  onDragStart={(e) => e.preventDefault()}
+                >
                   {isShieldActive && (
-                    <div className="album-shield-cover">
+                    <div className="album-shield-cover" role="status" aria-live="polite">
                       <ShieldAlert className="icon-xl text-rose u-animate-pulse" />
-                      <h5 className="shield-cover-title">SCREEN SHIELD ACTIVE</h5>
-                      <p className="shield-cover-desc">
-                        Secure album is hidden because the window lost focus.
-                      </p>
+                      <h5 className="shield-cover-title">{MSG.albumShieldTitle}</h5>
+                      <p className="shield-cover-desc">{shieldCoverDesc}</p>
                     </div>
                   )}
 
-                  {/* Album Grid list */}
-                  <div className={`album-grid ${isShieldActive ? 'album-blur-effect' : ''}`}>
+                  <div
+                    className={`album-grid ${isShieldActive ? 'album-blur-effect' : ''}`}
+                    aria-hidden={isShieldActive}
+                  >
                     {albumPhotos.map((photo) => (
                       <div 
                         key={photo.id} 
@@ -730,7 +1047,7 @@ export default function ChatRoom({
                               onClick={() => handleViewImage(photo.id)}
                               className="btn btn-secure btn-sm"
                             >
-                              Unlock Ephemeral ({photo.totalTime}s)
+                              Unlock ({photo.totalTime}s)
                             </button>
                           </div>
                         )}
@@ -742,7 +1059,7 @@ export default function ChatRoom({
 
                         {photo.strippedSize && (
                           <div className="album-stripped-note">
-                            <span>EXIF: Stripped</span>
+                            <span>Metadata Stripped</span>
                             <span>Scrubbed {Math.round(photo.bytesRemoved/1024)}KB</span>
                           </div>
                         )}
@@ -755,14 +1072,14 @@ export default function ChatRoom({
             )}
           </div>
 
-          {/* Right Panel: Wire Inspector / EXIF Tool */}
+          {/* Right Panel: Wire Inspector / Metadata Tool */}
           {showWireInspector && (
             <div className="wire-inspector glass-panel">
               
               {/* E2EE packet log */}
               <div className="wire-header">
                 <Shield className="icon-md text-cyan" />
-                <h4 className="wire-title">E2EE Wire Inspector</h4>
+                <h4 className="wire-title">{MSG.wireInspectorTitle}</h4>
               </div>
               
               {lastTransmittedPacket ? (
@@ -777,56 +1094,50 @@ export default function ChatRoom({
                   </pre>
                   
                   <div className="warning-banner warning-banner--success">
-                    <p className="warning-banner-text">
-                      The network router only sees this fuzzed ciphertext structure. Private key keys are never broadcast.
-                    </p>
+                    <p className="warning-banner-text">{MSG.wireInspectorNote}</p>
                   </div>
                 </div>
               ) : (
-                <p className="wire-empty">
-                  Send a message to view the E2EE network packet.
-                </p>
+                <p className="wire-empty">{MSG.wireInspectorEmpty}</p>
               )}
 
-              {/* JPEG metadata Inspector */}
+              {/* Media Metadata Inspector */}
               {fileAnalysis && (
                 <div className="exif-panel exif-panel--bordered">
                   <div className="wire-header wire-header--flat">
                     <Camera className="icon-md text-rose" />
-                    <h4 className="wire-title wire-title--rose">EXIF Metadata Inspector</h4>
+                    <h4 className="wire-title wire-title--rose">{MSG.photoInspectorTitle}</h4>
                   </div>
 
                   <div className="exif-meta-fields">
                     <div className="exif-meta-field-row">
-                      <span className="exif-meta-label">File name:</span>
+                      <span className="exif-meta-label">Name:</span>
                       <span className="exif-meta-value" style={{ fontWeight: 700 }}>{fileAnalysis.filename.slice(0, 15)}...</span>
                     </div>
                     <div className="exif-meta-field-row">
-                      <span className="exif-meta-label">Camera:</span>
+                      <span className="exif-meta-label">Device:</span>
                       <span className="exif-meta-value">{fileAnalysis.exif.cameraBrand} {fileAnalysis.exif.cameraModel}</span>
                     </div>
                     <div className="exif-meta-field-row">
-                      <span className="exif-meta-label">Timestamp:</span>
+                      <span className="exif-meta-label">Date:</span>
                       <span className="exif-meta-value">{fileAnalysis.exif.captureTime.split(',')[0]}</span>
                     </div>
                     <div className="exif-meta-field-row">
-                      <span className="exif-meta-label">GPS Lat:</span>
+                      <span className="exif-meta-label">Latitude:</span>
                       <span className="exif-meta-value-warning">{fileAnalysis.exif.gpsLatitude}</span>
                     </div>
                     <div className="exif-meta-field-row">
-                      <span className="exif-meta-label">GPS Lng:</span>
+                      <span className="exif-meta-label">Longitude:</span>
                       <span className="exif-meta-value-warning">{fileAnalysis.exif.gpsLongitude}</span>
                     </div>
                     <div className="exif-meta-field-row">
-                      <span className="exif-meta-label">Coordinates:</span>
+                      <span className="exif-meta-label">Location:</span>
                       <span className="exif-meta-value">{fileAnalysis.exif.locationEst}</span>
                     </div>
                   </div>
 
                   <div className="warning-banner warning-banner--compact">
-                    <p className="warning-banner-text">
-                      ⚠️ **Risk Profile**: Image contains EXIF GPS tags. Sending this raw exposes your precise home coordinates.
-                    </p>
+                    <p className="warning-banner-text">{MSG.photoRisk}</p>
                   </div>
 
                   <div className="exif-compress-bar">
@@ -849,7 +1160,7 @@ export default function ChatRoom({
                     disabled={isStripping}
                     className="btn btn-secure btn-full btn-sm"
                   >
-                    {isStripping ? 'Scrubbing APP1 segments...' : 'Strip EXIF & Send Secure'}
+                    {isStripping ? MSG.photoStripping : MSG.photoStripSend}
                   </button>
                 </div>
               )}

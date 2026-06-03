@@ -3,16 +3,20 @@ import jwt from 'jsonwebtoken';
 import jwksClient from 'jwks-rsa';
 import { config } from '../config.js';
 import { pool } from '../db/pool.js';
+import { verifySessionToken } from '../services/auth.js';
+import { logger } from '../utils/logger.js';
 
 export type AuthUser = {
   id: string;
   entraOid: string;
+  isAdmin: boolean;
 };
 
 declare global {
   namespace Express {
     interface Request {
       authUser?: AuthUser;
+      requestId?: string;
     }
   }
 }
@@ -49,25 +53,37 @@ async function verifyEntraToken(token: string): Promise<jwt.JwtPayload> {
 }
 
 async function resolveUser(entraOid: string): Promise<AuthUser> {
-  const existing = await pool.query('SELECT id, entra_oid FROM users WHERE entra_oid = $1', [entraOid]);
+  const existing = await pool.query(
+    'SELECT id, entra_oid, is_admin FROM users WHERE entra_oid = $1',
+    [entraOid],
+  );
   if (existing.rows[0]) {
-    return { id: existing.rows[0].id, entraOid: existing.rows[0].entra_oid };
+    return {
+      id: existing.rows[0].id,
+      entraOid: existing.rows[0].entra_oid,
+      isAdmin: Boolean(existing.rows[0].is_admin),
+    };
   }
   const inserted = await pool.query(
-    'INSERT INTO users (entra_oid) VALUES ($1) RETURNING id, entra_oid',
+    'INSERT INTO users (entra_oid, is_admin) VALUES ($1, false) RETURNING id, entra_oid, is_admin',
     [entraOid],
   );
   await pool.query('INSERT INTO user_preferences (user_id) VALUES ($1) ON CONFLICT DO NOTHING', [
     inserted.rows[0].id,
   ]);
-  return { id: inserted.rows[0].id, entraOid: inserted.rows[0].entra_oid };
+  return {
+    id: inserted.rows[0].id,
+    entraOid: inserted.rows[0].entra_oid,
+    isAdmin: Boolean(inserted.rows[0].is_admin),
+  };
 }
 
 export async function requireAuth(req: Request, res: Response, next: NextFunction) {
   try {
     if (config.devAuthBypass && req.header('x-dev-user-id')) {
       const devId = req.header('x-dev-user-id')!;
-      req.authUser = await resolveUser(devId);
+      const user = await resolveUser(devId);
+      req.authUser = { ...user, isAdmin: true };
       return next();
     }
 
@@ -84,16 +100,22 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
       return next();
     }
 
-    if (config.devAuthBypass) {
-      const payload = jwt.decode(token) as { sub?: string } | null;
-      const sub = payload?.sub ?? 'dev-anonymous';
-      req.authUser = await resolveUser(sub);
-      return next();
+    if (config.jwtSecret) {
+      try {
+        const sub = verifySessionToken(token);
+        req.authUser = await resolveUser(sub);
+        return next();
+      } catch {
+        return res.status(401).json({ error: 'Invalid or expired session' });
+      }
     }
 
     return res.status(401).json({ error: 'Auth not configured' });
   } catch (err) {
-    console.error('Auth error', err);
+    logger.warn('Auth verification failed', {
+      requestId: req.requestId,
+      error: err instanceof Error ? err.name : 'AuthError',
+    });
     return res.status(401).json({ error: 'Unauthorized' });
   }
 }

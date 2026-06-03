@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Shield, Eye, EyeOff, Flame, Menu, X } from 'lucide-react';
+import { Shield, Eye, EyeOff, Flame, Menu, X, LogOut } from 'lucide-react';
+import { MSG } from '../utils/userMessages';
 import useFocusTrap from '../hooks/useFocusTrap';
 
 /**
@@ -20,6 +21,9 @@ export default function Navigation({
   stealthMode,
   setStealthMode,
   onPanicTrigger,
+  onLogout,
+  userLabel,
+  sessionIsAdmin = false,
 }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [showPanicConfirm, setShowPanicConfirm] = useState(false);
@@ -28,6 +32,7 @@ export default function Navigation({
   const tabs = [
     { id: 'grid', label: 'Discovery Grid' },
     { id: 'chat', label: 'Messages' },
+    { id: 'profile', label: 'Profile' },
     { id: 'privacy', label: 'Settings' },
   ];
 
@@ -56,9 +61,10 @@ export default function Navigation({
               <Shield className="icon-md icon-white" />
             </div>
             <span className="logo-title">AETHER</span>
-            <span className="logo-badge">E2EE v1.0</span>
+            <span className="logo-badge"></span>
           </div>
 
+          {/* Navigation Tabs */}
           <nav className="nav-tabs">
             {tabs.map((tab) => (
               <button
@@ -72,6 +78,17 @@ export default function Navigation({
           </nav>
 
           <div className="header-controls">
+            {userLabel && (
+              <span className="header-user-label" title={userLabel}>
+                {userLabel}
+                {sessionIsAdmin && (
+                  <span className="metadata-badge badge-warning badge-sm header-admin-badge">
+                    {MSG.authAdminBadge}
+                  </span>
+                )}
+              </span>
+            )}
+
             <div className="status-badge-container">
               <span className={`status-indicator ${stealthMode ? 'status-offline' : 'status-online'}`} />
               <span className="status-badge-text">
@@ -79,6 +96,7 @@ export default function Navigation({
               </span>
             </div>
 
+            {/* Stealth Mode Button */}
             <button
               onClick={() => setStealthMode(!stealthMode)}
               title={stealthMode ? 'Offline Mode' : 'Online Mode'}
@@ -89,6 +107,7 @@ export default function Navigation({
               {stealthMode ? <EyeOff className="icon-md" /> : <Eye className="icon-md" />}
             </button>
 
+            {/* Panic Mode Button */}
             <button
               onClick={() => setShowPanicConfirm(true)}
               title="Panic Mode: Account Deletion"
@@ -97,6 +116,18 @@ export default function Navigation({
               <Flame className="icon-md" />
             </button>
 
+            {onLogout && (
+              <button
+                type="button"
+                onClick={onLogout}
+                title={MSG.authLogout}
+                className="icon-btn-ctrl"
+              >
+                <LogOut className="icon-md" />
+              </button>
+            )}
+
+            {/* Mobile Menu Button */}
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
               className="icon-btn-ctrl mobile-menu-btn"
@@ -106,6 +137,7 @@ export default function Navigation({
           </div>
         </div>
 
+        {/* Mobile Menu */}
         {mobileMenuOpen && (
           <div className="mobile-drawer">
             {tabs.map((tab) => (
@@ -123,13 +155,14 @@ export default function Navigation({
             <div className="mobile-drawer-status">
               <span className="status-badge-text">Grid Presence:</span>
               <span className={`metadata-badge ${stealthMode ? 'badge-warning' : 'badge-success'}`}>
-                {stealthMode ? 'Hidden' : 'Active (Fuzzed)'}
+                {stealthMode ? MSG.navHidden : MSG.navVisibleNearby}
               </span>
             </div>
           </div>
         )}
       </header>
 
+      {/* Panic Mode Modal */}
       {showPanicConfirm && (
         <div className="modal-backdrop" onClick={() => setShowPanicConfirm(false)}>
           <div
@@ -146,12 +179,12 @@ export default function Navigation({
               </div>
 
               <h3 id="panic-modal-title" className="modal-title modal-title--spaced">
-                Confirm Safety Wipe?
+                Confirm Panic Mode?
               </h3>
 
               <p className="modal-subtitle modal-subtitle--body">
-                This will instantly clear all local E2EE keys, photo caches, and message logs from this device.
-                Your profile will also be marked for permanent database deletion with a 30-day grace period.
+                This will instantly clear all local app information from this device.
+                Your account will also be marked for permanent deletion.
               </p>
 
               <div className="modal-actions modal-actions--stacked">
@@ -159,7 +192,7 @@ export default function Navigation({
                   onClick={executePanic}
                   className="btn btn-danger modal-btn"
                 >
-                  Wipe Device & Hide Profile
+                  Confirm Panic Mode
                 </button>
                 <button
                   onClick={() => setShowPanicConfirm(false)}

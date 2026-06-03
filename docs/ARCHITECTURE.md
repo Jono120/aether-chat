@@ -20,7 +20,8 @@ flowchart TB
     Exif[exif.js]
   end
   subgraph storage [Browser Storage]
-    LS["localStorage\naether_user_keys\naether_deletion_scheduled"]
+    IDB["IndexedDB aether-keys\ndevice private keys"]
+    LS["localStorage\nsession, prefs, deletion grace"]
   end
   subgraph api [Optional API]
     Client[api/client.js]
@@ -32,6 +33,7 @@ flowchart TB
   App --> Grid
   App --> Chat
   App --> Privacy
+  App --> IDB
   App --> LS
   ToastCtx[ToastContext] --> Toast
   App --> ToastCtx
@@ -68,7 +70,9 @@ Additional global flags: `stealthMode`, `activeChatProfile`, `startWithAlbum`, `
 | **PrivacyCenter** | `src/components/PrivacyCenter.jsx` | Fuzzing strategy UI, key ring display, rotation trigger, PIN/shield toggles, deletion grace, device wipe |
 | **Toast** | `src/components/Toast.jsx` + `src/context/ToastContext.jsx` | Non-blocking notifications and confirm prompts (replaces `alert` / `confirm`) |
 
-Entry: [`src/main.jsx`](../src/main.jsx) wraps `App` in `ToastProvider` and mounts into `#root`.
+Entry: [`src/main.jsx`](../src/main.jsx) wraps `App` in `ErrorBoundary` + `ToastProvider`. When the API is disabled, [`DemoModeBanner`](../src/components/DemoModeBanner.jsx) explains local-only demo mode.
+
+Auth: [`AuthPage`](../src/components/AuthPage.jsx) + [`api/client.js`](../src/api/client.js) (401 clears session). Legal pages: `#terms` / `#privacy` via [`LegalPage`](../src/components/LegalPage.jsx).
 
 ---
 

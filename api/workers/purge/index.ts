@@ -23,7 +23,7 @@ async function processDueDeletions() {
        AND u.status = 'deletion_pending'`,
   );
   for (const row of due.rows) {
-    console.log('Purging user', row.user_id);
+    console.log('Purging scheduled account');
     await purgeUserAccount(row.user_id);
   }
 }

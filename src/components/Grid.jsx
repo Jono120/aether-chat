@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { MessageSquare, Image, ShieldAlert, X, ShieldCheck } from 'lucide-react';
 import useFocusTrap from '../hooks/useFocusTrap';
+import { MSG } from '../utils/userMessages';
+import { genderLabel } from '../utils/profileOptions';
 
 /**
  * Grid Component
@@ -12,7 +14,16 @@ import useFocusTrap from '../hooks/useFocusTrap';
  * - profile-card / profile-card-overlay / profile-card-name / profile-card-distance
  * - modal-backdrop / modal-content / modal-header-banner / modal-avatar-wrapper
  */
-export default function Grid({ stealthMode, onSelectChat, profiles, profilesLoading }) {
+export default function Grid({
+  stealthMode,
+  onSelectChat,
+  profiles,
+  profilesLoading,
+  profilesError,
+  onRefreshProfiles,
+  onBlockUser,
+  onReportUser,
+}) {
   const [selectedProfile, setSelectedProfile] = useState(null);
   const profileModalRef = useFocusTrap(!!selectedProfile);
 
@@ -88,7 +99,7 @@ export default function Grid({ stealthMode, onSelectChat, profiles, profilesLoad
           </div>
           <div className="warning-banner-text">
             <strong className="banner-title">Offline Mode</strong>
-            You're hidden right now — other people nearby won't see your profile or how far away you are. Turn visibility back on in the header when you want to show up again.
+            You're hidden right now — other people nearby won't see your profile or how far away you are. Go back online to show up again.
           </div>
         </div>
       )}
@@ -100,20 +111,40 @@ export default function Grid({ stealthMode, onSelectChat, profiles, profilesLoad
             {profilesLoading && <span className="metadata-badge"> Syncing…</span>}
           </h2>
           <p className="grid-section-desc">
-            Distances are approximate — we don't show anyone's exact location.
+            Distances are approximate for privacy reasons.
           </p>
         </div>
         <div>
           <span className={`metadata-badge ${stealthMode ? 'badge-stealth' : 'badge-success'}`}>
-            {stealthMode ? 'Hidden from discovery' : `${profiles.length} Online Nearby`}
+            {stealthMode ? 'Hidden from grid' : `${profiles.length} Online Nearby`}
           </span>
         </div>
       </div>
 
+      {profilesError && (
+        <div className="warning-banner">
+          <div className="warning-banner-text">
+            <strong className="banner-title">Could not load profiles</strong>
+            <p>{profilesError}</p>
+            {onRefreshProfiles && (
+              <button type="button" className="btn btn-secondary" style={{ marginTop: '0.5rem' }} onClick={onRefreshProfiles}>
+                Retry
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
       {stealthMode ? (
         <div className="discovery-grid grid-empty-state">
           <p className="grid-empty-text">
-            Discovery is paused while offline. Toggle visibility in the header to browse nearby profiles again.
+            Discovery is paused while offline. Go online to show up again.
+          </p>
+        </div>
+      ) : profiles.length === 0 && !profilesLoading ? (
+        <div className="discovery-grid grid-empty-state">
+          <p className="grid-empty-text">
+            {profilesError ? 'Fix the connection above and retry.' : 'No one nearby right now. Check back later.'}
           </p>
         </div>
       ) : (
@@ -131,7 +162,10 @@ export default function Grid({ stealthMode, onSelectChat, profiles, profilesLoad
               <div className="profile-card-overlay">
                 <div className="profile-card-name">
                   <span className="status-indicator status-online" />
-                  <span>{profile.username}, {profile.age}</span>
+                  <span>
+                    {profile.username}
+                    {profile.age != null ? `, ${profile.age}` : ''}
+                  </span>
                 </div>
                 <div className="profile-card-distance">
                   <span>{profile.fuzzedDistance}</span>
@@ -179,10 +213,18 @@ export default function Grid({ stealthMode, onSelectChat, profiles, profilesLoad
               <div className="modal-identity">
                 <div className="modal-title-row">
                   <h3 id="profile-modal-title" className="modal-title">{selectedProfile.username}</h3>
-                  <span className="text-secondary">·</span>
-                  <span className="modal-age">Age {selectedProfile.age}</span>
+                  {selectedProfile.age != null && (
+                    <>
+                      <span className="text-secondary">·</span>
+                      <span className="modal-age">{MSG.profileModalAge} {selectedProfile.age}</span>
+                    </>
+                  )}
                 </div>
-                <p className="modal-subtitle">{selectedProfile.role}</p>
+                {(selectedProfile.gender || selectedProfile.role) && (
+                  <p className="modal-subtitle">
+                    {[genderLabel(selectedProfile.gender), selectedProfile.role].filter(Boolean).join(' · ')}
+                  </p>
+                )}
               </div>
 
               <div className="modal-distance-box">
@@ -191,20 +233,36 @@ export default function Grid({ stealthMode, onSelectChat, profiles, profilesLoad
                   <span className="modal-distance-value">{selectedProfile.fuzzedDistance}</span>
                 </div>
                 <p className="modal-distance-desc">
-                  You only see a rough distance band — not their exact location. We round location on our side so nobody can pin down where they are.
+                  You only see an approximate distance — not their exact location. We round location on our side so nobody can locate them.
                 </p>
               </div>
 
               <div className="modal-bio-section">
-                <div className="modal-label">Bio</div>
+                <div className="modal-label">{MSG.profileModalBio}</div>
                 <p className="modal-bio-text">{selectedProfile.bio}</p>
               </div>
 
-              <div className="modal-tags-list">
-                {selectedProfile.tags.map((tag, i) => (
-                  <span key={i} className="modal-tag">{tag}</span>
-                ))}
-              </div>
+              {(selectedProfile.lookingFor?.length ?? 0) > 0 && (
+                <div className="modal-tags-section">
+                  <div className="modal-label">{MSG.profileModalLookingFor}</div>
+                  <div className="modal-tags-list modal-tags-list--inline">
+                    {selectedProfile.lookingFor.map((item, i) => (
+                      <span key={i} className="modal-tag modal-tag--accent">{item}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {(selectedProfile.tags?.length ?? 0) > 0 && (
+                <div className="modal-tags-section">
+                  <div className="modal-label">{MSG.profileModalInterests}</div>
+                  <div className="modal-tags-list modal-tags-list--inline">
+                    {selectedProfile.tags.map((tag, i) => (
+                      <span key={i} className="modal-tag">{tag}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               <div className="modal-actions">
                 <button
@@ -228,6 +286,34 @@ export default function Grid({ stealthMode, onSelectChat, profiles, profilesLoad
                   </button>
                 )}
               </div>
+              {(onBlockUser || onReportUser) && (
+                <div className="modal-actions" style={{ marginTop: '0.5rem' }}>
+                  {onBlockUser && (
+                    <button
+                      type="button"
+                      className="btn btn-secondary modal-btn"
+                      onClick={async () => {
+                        await onBlockUser(selectedProfile);
+                        setSelectedProfile(null);
+                      }}
+                    >
+                      Block
+                    </button>
+                  )}
+                  {onReportUser && (
+                    <button
+                      type="button"
+                      className="btn btn-secondary modal-btn"
+                      onClick={async () => {
+                        await onReportUser(selectedProfile);
+                        setSelectedProfile(null);
+                      }}
+                    >
+                      Report
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         </div>

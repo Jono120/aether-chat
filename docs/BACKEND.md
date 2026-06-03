@@ -78,7 +78,33 @@ The server validates JWT identity, conversation membership, and envelope shape. 
 | Conversations | `GET /conversations`, `GET /conversations/:id/messages`, `POST /conversations/:id/messages` | JWT |
 | Media | `POST /media/upload-sas`, `DELETE /media/:id` | JWT |
 | Privacy | `PUT /preferences`, `POST /account/deletion`, `DELETE /account/deletion` | JWT |
+| Support | `POST /support/error-reports` | JWT (rate-limited) |
+| Admin | `GET /admin/error-reports`, `GET /admin/error-reports/:id`, `PATCH /admin/error-reports/:id` | JWT + admin |
 | SignalR | `POST /signalr/negotiate`, hub `ReceiveEnvelope` | JWT |
+
+### Error reports
+
+`POST /api/v1/support/error-reports` accepts:
+
+```json
+{
+  "description": "string (min 10 chars for manual reports)",
+  "context": { "urlPath": "/#privacy", "userAgent": "..." },
+  "source": "user | auto",
+  "errorName": "TypeError",
+  "stackSnippet": "optional truncated stack"
+}
+```
+
+Context is allowlisted server-side (`deviceId`, `fingerprint`, `userAgent`, `urlPath`, `theme`, `accessibility`, `apiEnabled`, `appVersion`, `buildTime`). Keys matching `token`, `password`, `session`, `cipher`, or `message` are stripped.
+
+Admin triage (no SPA UI yet):
+
+- `GET /api/v1/admin/error-reports?status=new&source=auto&limit=50&cursor=ISO|uuid`
+- `GET /api/v1/admin/error-reports/:id`
+- `PATCH /api/v1/admin/error-reports/:id` with `{ "status": "triaged" | "resolved" }`
+
+---
 
 All write bodies for chat use ciphertext envelopes:
 
@@ -105,8 +131,12 @@ All write bodies for chat use ciphertext envelopes:
 | `AZURE_SIGNALR_CONNECTION_STRING` | API | Realtime broadcast |
 | `SERVICE_BUS_CONNECTION_STRING` | API, workers | Deletion queue |
 | `DEV_AUTH_BYPASS` | API (dev only) | Accept `X-Dev-User-Id` when Entra is not configured |
+| `SUPPORT_ALERT_EMAIL` | API | Recipient for new error-report email alerts (falls back to `ADMIN_EMAIL`) |
+| `SMTP_*` | API | Required for password-reset and error-report alert emails in production |
 
 Frontend: `VITE_API_URL` (e.g. `http://localhost:8080` or `https://api.example.com`).
+
+API request logs include `requestId` (from `X-Request-Id` or generated) on every completed request for Log Analytics correlation. All log metadata is passed through `logSanitize.ts` so emails, user IDs, tokens, and query strings are not written to stdout.
 
 ---
 

@@ -1,9 +1,11 @@
 import { useEffect, useRef } from 'react';
-import { fetchMessages, isApiEnabled } from '../api/client';
+import * as signalR from '@microsoft/signalr';
+import { fetchMessages, isApiEnabled, negotiateSignalR } from '../api/client';
+
+const SIGNALR_HUB = import.meta.env.VITE_SIGNALR_URL ?? '';
 
 /**
- * Polls conversation messages when SignalR is not wired in the SPA.
- * Replace with @microsoft/signalr client when VITE_SIGNALR_URL is set.
+ * Receives conversation messages via Azure SignalR when configured, otherwise polls REST.
  */
 export function useRealtimeMessages(conversationId, onEnvelope, intervalMs = 3000) {
   const lastSeenRef = useRef(new Set());
@@ -11,30 +13,76 @@ export function useRealtimeMessages(conversationId, onEnvelope, intervalMs = 300
   useEffect(() => {
     if (!isApiEnabled() || !conversationId) return undefined;
 
+    let connection;
+    let pollTimer;
+    let cancelled = false;
+
+    const deliver = (msg) => {
+      if (!msg?.id || lastSeenRef.current.has(msg.id)) return;
+      lastSeenRef.current.add(msg.id);
+      onEnvelope({
+        id: msg.id,
+        senderEntraOid: msg.sender_entra_oid ?? msg.senderEntraOid,
+        ciphertext: msg.ciphertext,
+        iv: msg.iv,
+        cipherSuite: msg.cipher_suite ?? msg.cipherSuite,
+        keyId: msg.key_id ?? msg.keyId,
+        sentAt: msg.sent_at ?? msg.sentAt,
+        expiresAt: msg.expires_at ?? msg.expiresAt,
+      });
+    };
+
     const poll = async () => {
       try {
         const messages = await fetchMessages(conversationId);
-        for (const msg of messages) {
-          if (lastSeenRef.current.has(msg.id)) continue;
-          lastSeenRef.current.add(msg.id);
-          onEnvelope({
-            id: msg.id,
-            senderEntraOid: msg.sender_entra_oid,
-            ciphertext: msg.ciphertext,
-            iv: msg.iv,
-            cipherSuite: msg.cipher_suite,
-            keyId: msg.key_id,
-            sentAt: msg.sent_at,
-            expiresAt: msg.expires_at,
-          });
-        }
+        for (const msg of messages) deliver(msg);
       } catch (err) {
         console.warn('Message poll failed', err);
       }
     };
 
-    poll();
-    const timer = setInterval(poll, intervalMs);
-    return () => clearInterval(timer);
+    const startPolling = () => {
+      poll();
+      pollTimer = setInterval(poll, intervalMs);
+    };
+
+    const startSignalR = async () => {
+      try {
+        const negotiated = await negotiateSignalR();
+        if (cancelled || !negotiated?.url || !negotiated?.accessToken) {
+          startPolling();
+          return;
+        }
+        connection = new signalR.HubConnectionBuilder()
+          .withUrl(negotiated.url, {
+            accessTokenFactory: () => negotiated.accessToken,
+          })
+          .withAutomaticReconnect()
+          .build();
+
+        connection.on('ReceiveEnvelope', (payload) => {
+          deliver(payload);
+        });
+
+        await connection.start();
+        if (SIGNALR_HUB) {
+          await connection.invoke('JoinConversation', conversationId).catch(() => {});
+        }
+        await poll();
+      } catch (err) {
+        console.warn('SignalR unavailable, falling back to polling', err);
+        if (!cancelled) startPolling();
+      }
+    };
+
+    startSignalR();
+
+    return () => {
+      cancelled = true;
+      if (pollTimer) clearInterval(pollTimer);
+      if (connection) {
+        connection.stop().catch(() => {});
+      }
+    };
   }, [conversationId, onEnvelope, intervalMs]);
 }

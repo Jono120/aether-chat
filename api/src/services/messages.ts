@@ -1,5 +1,7 @@
 import { pool } from '../db/pool.js';
 import { v4 as uuidv4 } from 'uuid';
+import { isBlockedEitherWay } from './moderation.js';
+import { getReadReceiptsForConversation } from './readReceipts.js';
 
 export type MessageEnvelope = {
   ciphertext: string;
@@ -12,6 +14,10 @@ export type MessageEnvelope = {
 export async function ensureDirectConversation(userId: string, peerEntraOid: string): Promise<string> {
   const peer = await pool.query('SELECT id FROM users WHERE entra_oid = $1', [peerEntraOid]);
   if (!peer.rows[0]) throw new Error('Peer not found');
+
+  if (await isBlockedEitherWay(userId, peer.rows[0].id)) {
+    throw new Error('Cannot message this user');
+  }
 
   const existing = await pool.query(
     `SELECT c.id FROM conversations c
@@ -63,7 +69,12 @@ export async function listMessages(conversationId: string, userId: string, limit
      LIMIT $2`,
     [conversationId, limit],
   );
-  return result.rows;
+
+  const receipts = await getReadReceiptsForConversation(conversationId, userId);
+  return result.rows.map((row) => ({
+    ...row,
+    readBy: receipts[row.id as string] ?? [],
+  }));
 }
 
 export async function insertMessage(
@@ -76,6 +87,16 @@ export async function insertMessage(
     [conversationId, senderUserId],
   );
   if (!member.rowCount) throw new Error('Forbidden');
+
+  const peers = await pool.query(
+    `SELECT user_id FROM conversation_members WHERE conversation_id = $1 AND user_id != $2`,
+    [conversationId, senderUserId],
+  );
+  for (const peer of peers.rows) {
+    if (await isBlockedEitherWay(senderUserId, peer.user_id as string)) {
+      throw new Error('Cannot message this user');
+    }
+  }
 
   const result = await pool.query(
     `INSERT INTO messages (conversation_id, sender_user_id, ciphertext, cipher_suite, iv, key_id, expires_at)

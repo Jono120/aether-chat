@@ -39,6 +39,9 @@ jobs:
         run: npm ci
 
       - name: Build
+        env:
+          VITE_API_URL: ${{ vars.VITE_API_URL }}
+          VITE_SIGNALR_URL: ${{ vars.VITE_SIGNALR_URL }}
         run: npm run build
 
       - name: Deploy to Azure Static Web Apps

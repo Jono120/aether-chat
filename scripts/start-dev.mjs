@@ -39,16 +39,13 @@ async function main() {
   console.log('[INFO] Starting Vite development server and opening default browser...');
   console.log();
 
-  const viteBin =
-    process.platform === 'win32'
-      ? join(root, 'node_modules', '.bin', 'vite.cmd')
-      : join(root, 'node_modules', '.bin', 'vite');
+  // Run vite.js via Node — .cmd shims fail on Windows with shell: false (EINVAL).
+  const viteJs = join(root, 'node_modules', 'vite', 'bin', 'vite.js');
 
   await new Promise((resolve, reject) => {
-    const child = spawn(viteBin, ['--open'], {
+    const child = spawn(process.execPath, [viteJs, '--open'], {
       cwd: root,
       stdio: 'inherit',
-      shell: false,
     });
     child.on('error', reject);
     child.on('close', (code) => process.exit(code ?? 0));

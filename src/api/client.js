@@ -1,5 +1,13 @@
+import { loadSession, clearSession } from '../utils/authStorage.js';
+
 const API_BASE = import.meta.env.VITE_API_URL ?? '';
 const DEV_USER_ID = import.meta.env.VITE_DEV_USER_ID ?? 'dev-user-1';
+
+let onSessionExpired = null;
+
+export function setSessionExpiredHandler(handler) {
+  onSessionExpired = handler;
+}
 
 function isApiEnabled() {
   return Boolean(API_BASE);
@@ -7,12 +15,94 @@ function isApiEnabled() {
 
 function authHeaders() {
   const headers = { 'Content-Type': 'application/json' };
-  if (import.meta.env.VITE_API_TOKEN) {
+  const session = loadSession();
+
+  if (session?.token) {
+    headers.Authorization = `Bearer ${session.token}`;
+  } else if (import.meta.env.VITE_API_TOKEN) {
     headers.Authorization = `Bearer ${import.meta.env.VITE_API_TOKEN}`;
-  } else if (import.meta.env.DEV) {
+  } else if (import.meta.env.DEV && isApiEnabled()) {
     headers['X-Dev-User-Id'] = DEV_USER_ID;
   }
+
   return headers;
+}
+
+async function handleResponse(res) {
+  if (res.status === 401) {
+    clearSession();
+    onSessionExpired?.('Your session expired. Please sign in again.');
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error ?? 'Session expired');
+  }
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error ?? `API ${res.status}`);
+  }
+  return res.json();
+}
+
+async function publicRequest(path, options = {}) {
+  if (!isApiEnabled()) return null;
+  const res = await fetch(`${API_BASE}${path}`, {
+    ...options,
+    headers: { 'Content-Type': 'application/json', ...options.headers },
+  });
+  return handleResponse(res);
+}
+
+export async function registerAccount(email, password, displayName) {
+  const data = await publicRequest('/api/v1/auth/register', {
+    method: 'POST',
+    body: JSON.stringify({ email, password, displayName }),
+  });
+  return data;
+}
+
+export async function loginAccount(email, password) {
+  const data = await publicRequest('/api/v1/auth/login', {
+    method: 'POST',
+    body: JSON.stringify({ email, password }),
+  });
+  return data;
+}
+
+export async function fetchAuthConfig() {
+  if (!isApiEnabled()) {
+    return {
+      google: 'mock',
+      apple: 'mock',
+      googleClientId: null,
+      appleClientId: null,
+      appleRedirectUri: window.location.origin,
+    };
+  }
+  return publicRequest('/api/v1/auth/config');
+}
+
+export async function loginWithGoogle(credential) {
+  return publicRequest('/api/v1/auth/oauth/google', {
+    method: 'POST',
+    body: JSON.stringify({ credential }),
+  });
+}
+
+export async function loginWithApple(idToken, displayName) {
+  return publicRequest('/api/v1/auth/oauth/apple', {
+    method: 'POST',
+    body: JSON.stringify({ idToken, displayName }),
+  });
+}
+
+export async function mockOAuthLogin(provider) {
+  return publicRequest('/api/v1/auth/oauth/mock', {
+    method: 'POST',
+    body: JSON.stringify({ provider }),
+  });
+}
+
+export async function negotiateSignalR() {
+  return request('/api/v1/signalr/negotiate', { method: 'POST' });
 }
 
 async function request(path, options = {}) {
@@ -21,16 +111,25 @@ async function request(path, options = {}) {
     ...options,
     headers: { ...authHeaders(), ...options.headers },
   });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.error ?? `API ${res.status}`);
-  }
-  return res.json();
+  return handleResponse(res);
 }
 
 export async function fetchNearbyProfiles() {
   const data = await request('/api/v1/profiles/nearby');
   return data?.profiles ?? null;
+}
+
+export async function fetchMyProfile() {
+  const data = await request('/api/v1/profiles/me');
+  return data?.profile ?? null;
+}
+
+export async function updateMyProfile(payload) {
+  const data = await request('/api/v1/profiles/me', {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  });
+  return data?.profile ?? null;
 }
 
 export async function registerPublicKey(deviceId, publicKeyJwk, fingerprint) {
@@ -86,6 +185,96 @@ export async function cancelAccountDeletion() {
 
 export async function panicLockServer() {
   return request('/api/v1/account/panic', { method: 'POST' });
+}
+
+export async function submitErrorReport(descriptionOrPayload, context = {}) {
+  const payload =
+    typeof descriptionOrPayload === 'object' && descriptionOrPayload !== null
+      ? descriptionOrPayload
+      : { description: descriptionOrPayload, context };
+  const {
+    description,
+    context: ctx = {},
+    source = 'user',
+    errorName,
+    stackSnippet,
+  } = payload;
+  return request('/api/v1/support/error-reports', {
+    method: 'POST',
+    body: JSON.stringify({
+      description,
+      context: ctx,
+      source,
+      errorName,
+      stackSnippet,
+    }),
+  });
+}
+
+export async function fetchMessagingPreferences() {
+  return request('/api/v1/users/me/messaging-preferences');
+}
+
+export async function patchMessagingPreferences(readReceiptsEnabled) {
+  return request('/api/v1/users/me/messaging-preferences', {
+    method: 'PATCH',
+    body: JSON.stringify({ readReceiptsEnabled }),
+  });
+}
+
+export async function markConversationRead(conversationId, messageIds) {
+  return request(`/api/v1/conversations/${conversationId}/read`, {
+    method: 'POST',
+    body: JSON.stringify({ messageIds }),
+  });
+}
+
+export async function fetchBlockedUsers() {
+  const data = await request('/api/v1/users/blocked');
+  return data?.blocked ?? [];
+}
+
+export async function blockUser(peerId) {
+  return request(`/api/v1/users/${encodeURIComponent(peerId)}/block`, { method: 'POST' });
+}
+
+export async function unblockUser(peerId) {
+  return request(`/api/v1/users/${encodeURIComponent(peerId)}/block`, { method: 'DELETE' });
+}
+
+export async function reportUser(peerId, { reason, details, conversationId } = {}) {
+  return request(`/api/v1/users/${encodeURIComponent(peerId)}/report`, {
+    method: 'POST',
+    body: JSON.stringify({ reason, details, conversationId }),
+  });
+}
+
+export async function forgotPassword(email) {
+  return publicRequest('/api/v1/auth/forgot-password', {
+    method: 'POST',
+    body: JSON.stringify({ email }),
+  });
+}
+
+export async function resetPassword(token, newPassword) {
+  return publicRequest('/api/v1/auth/reset-password', {
+    method: 'POST',
+    body: JSON.stringify({ token, newPassword }),
+  });
+}
+
+export async function verifyAccountPassword(password) {
+  return request('/api/v1/auth/verify-password', {
+    method: 'POST',
+    body: JSON.stringify({ password }),
+  });
+}
+
+export async function changePassword(currentPassword, newPassword) {
+  return request('/api/v1/auth/password', {
+    method: 'PATCH',
+    body: JSON.stringify({ currentPassword, newPassword }),
+  });
 }
 
 export { isApiEnabled };

@@ -22,6 +22,14 @@ resource "azurerm_container_app" "api" {
   revision_mode                = "Single"
   tags                         = var.tags
 
+  dynamic "secret" {
+    for_each = var.secret_env
+    content {
+      name  = replace(secret.key, "_", "-")
+      value = secret.value
+    }
+  }
+
   template {
     min_replicas = var.min_replicas
     max_replicas = var.max_replicas
@@ -35,6 +43,22 @@ resource "azurerm_container_app" "api" {
       env {
         name  = "PORT"
         value = tostring(var.target_port)
+      }
+
+      dynamic "env" {
+        for_each = var.env_vars
+        content {
+          name  = env.key
+          value = env.value
+        }
+      }
+
+      dynamic "env" {
+        for_each = var.secret_env
+        content {
+          name        = env.key
+          secret_name = replace(env.key, "_", "-")
+        }
       }
     }
   }

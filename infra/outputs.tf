@@ -43,3 +43,18 @@ output "storage_account_name" {
   description = "Media storage account name (when enable_backend = true)."
   value       = var.enable_backend ? module.storage[0].name : null
 }
+
+output "api_url" {
+  description = "HTTPS base URL for the API (set as VITE_API_URL in SPA build)."
+  value       = var.enable_backend ? "https://${module.container_app_api[0].fqdn}" : null
+}
+
+output "container_registry_login_server" {
+  description = "ACR login server for API image push (when enable_backend = true)."
+  value       = var.enable_backend ? azurerm_container_registry.api[0].login_server : null
+}
+
+output "static_web_app_url" {
+  description = "HTTPS URL for the hosted SPA (CORS origin for API)."
+  value       = "https://${azurerm_static_web_app.app.default_host_name}"
+}

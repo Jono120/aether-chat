@@ -182,7 +182,7 @@ Set in `infra/environments/*.tfvars`:
 
 | Variable | dev | prod |
 |----------|-----|------|
-| `enable_backend` | `false` (default) | `true` |
+| `enable_backend` | `true` in `dev.tfvars` (requires `TF_VAR_postgres_admin_password`) | `true` |
 | `enable_redis` | `false` | `true` |
 | `enable_cosmos` | `false` | `false` (optional) |
 | `postgres_admin_password` | TF_VAR in CI | Required, min 12 chars |
@@ -198,6 +198,30 @@ Outputs after apply: `api_fqdn`, `postgresql_fqdn`, `key_vault_uri`, `signalr_ho
 Configure Container App env vars from Key Vault: `DATABASE_URL`, `AZURE_SIGNALR_CONNECTION_STRING`, `AZURE_STORAGE_CONNECTION_STRING`, `SERVICE_BUS_CONNECTION_STRING`, Entra `AZURE_AD_*`.
 
 Point the SPA at the API: `VITE_API_URL=https://<api_fqdn>` in the deploy workflow or SWA application settings.
+
+---
+
+## Demo-only deploy (Phase 1 — no backend)
+
+Use this when you only need a shareable HTTPS demo with **no** PostgreSQL or Container Apps cost.
+
+1. Apply Terraform with `enable_backend = false` in your tfvars (or use defaults before enabling backend in `dev.tfvars`).
+2. Store `static_web_app_api_key` output as GitHub secret `AZURE_STATIC_WEB_APPS_API_TOKEN`.
+3. Push to `main` — `deploy-app.yml` builds and uploads `dist/` (leave `VITE_API_URL` unset for demo mode).
+4. Verify the SWA URL shows the **Demo mode** banner and mock profiles.
+5. Confirm response headers include CSP, `Permissions-Policy`, and `X-Frame-Options` via browser devtools or `curl -I`.
+
+Optional: add `public/favicon.svg` is bundled automatically from `public/`.
+
+---
+
+## Full stack deploy (Phase 2)
+
+1. Set `TF_VAR_postgres_admin_password` and apply Terraform with `enable_backend = true`.
+2. Note outputs: `api_url`, `container_registry_login_server`, `static_web_app_url`.
+3. Configure GitHub secrets for `deploy-api.yml`: `ACR_NAME`, `ACR_LOGIN_SERVER`, `CONTAINER_APP_NAME`, `AZURE_RESOURCE_GROUP`, plus Azure OIDC vars.
+4. Set repository variable `VITE_API_URL` to the `api_url` output for `deploy-app.yml`.
+5. Push API changes — `deploy-api.yml` builds Docker image, pushes to ACR, updates Container App (migrations run on container start).
 
 ---
 

@@ -100,6 +100,23 @@ module "container_app_api" {
   min_replicas        = var.api_min_replicas
   max_replicas        = var.environment == "prod" ? 10 : 3
   tags                = local.common_tags
+
+  env_vars = {
+    NODE_ENV              = "production"
+    DEV_AUTH_BYPASS       = "false"
+    WORKER_PURGE_ONLY     = "true"
+    CORS_ORIGIN           = "https://${azurerm_static_web_app.app.default_host_name}"
+    MEDIA_CONTAINER       = module.storage[0].media_container_name
+    SERVICE_BUS_DELETION_QUEUE = module.service_bus[0].deletion_queue_name
+  }
+
+  secret_env = {
+    DATABASE_URL                     = azurerm_key_vault_secret.database_url[0].value
+    JWT_SECRET                       = azurerm_key_vault_secret.jwt_secret[0].value
+    AZURE_STORAGE_CONNECTION_STRING  = azurerm_key_vault_secret.storage_connection[0].value
+    AZURE_SIGNALR_CONNECTION_STRING  = azurerm_key_vault_secret.signalr_connection[0].value
+    SERVICE_BUS_CONNECTION_STRING    = azurerm_key_vault_secret.service_bus_connection[0].value
+  }
 }
 
 module "function_workers" {

@@ -1,4 +1,5 @@
 import { config } from '../config.js';
+import { logger } from '../utils/logger.js';
 
 /**
  * Broadcast ciphertext envelope to conversation members via Azure SignalR REST API.
@@ -36,7 +37,7 @@ export async function broadcastEnvelope(
   });
 
   if (!response.ok) {
-    console.warn('SignalR broadcast failed', await response.text());
+    logger.warn('SignalR broadcast failed', { status: response.status });
     return { delivered: false, mode: 'signalr-error' as const };
   }
 

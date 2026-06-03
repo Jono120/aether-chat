@@ -6,6 +6,7 @@ import {
   listConversations,
   listMessages,
 } from '../services/messages.js';
+import { markMessagesRead } from '../services/readReceipts.js';
 import { broadcastEnvelope } from '../signalr/broadcast.js';
 
 export const conversationsRouter = Router();
@@ -47,7 +48,21 @@ conversationsRouter.post('/direct/:peerId', requireAuth, async (req, res) => {
   try {
     const conversationId = await ensureDirectConversation(req.authUser!.id, req.params.peerId);
     res.json({ conversationId });
-  } catch {
-    res.status(404).json({ error: 'Peer not found' });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Peer not found';
+    const status = message.includes('Cannot message') ? 403 : 404;
+    res.status(status).json({ error: message });
+  }
+});
+
+conversationsRouter.post('/:id/read', requireAuth, async (req, res) => {
+  try {
+    const messageIds = Array.isArray(req.body?.messageIds) ? req.body.messageIds : [];
+    const result = await markMessagesRead(req.params.id, req.authUser!.id, messageIds);
+    res.json(result);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Error';
+    const status = message === 'Forbidden' ? 403 : 400;
+    res.status(status).json({ error: message });
   }
 });

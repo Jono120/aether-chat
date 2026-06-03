@@ -5,8 +5,46 @@
  * Private keys never leave the device; only public JWKs are registered with the API.
  */
 
-const ECDH_PARAMS = { name: 'ECDH', namedCurve: 'X25519' };
+import { MSG } from './userMessages.js';
+
+const X25519_NATIVE = { name: 'X25519' };
+const X25519_ECDH = { name: 'ECDH', namedCurve: 'X25519' };
 const AES_PARAMS = { name: 'AES-GCM', length: 256 };
+
+/** @type {{ keyAlg: EcKeyAlgorithm | Algorithm; derivePublic: EcKeyImportParams | Algorithm } | null} */
+let x25519Resolved = null;
+
+async function resolveX25519() {
+  if (x25519Resolved) return x25519Resolved;
+
+  try {
+    await crypto.subtle.generateKey(X25519_NATIVE, false, ['deriveBits']);
+    x25519Resolved = {
+      keyAlg: X25519_NATIVE,
+      deriveBits: true,
+      derivePublic: X25519_NATIVE,
+    };
+    return x25519Resolved;
+  } catch {
+    // Older Chromium builds used ECDH + namedCurve
+  }
+
+  try {
+    await crypto.subtle.generateKey(X25519_ECDH, false, ['deriveKey']);
+    x25519Resolved = {
+      keyAlg: X25519_ECDH,
+      deriveBits: false,
+      derivePublic: { name: 'ECDH' },
+    };
+    return x25519Resolved;
+  } catch {
+    throw new Error(MSG.keysBrowserUnsupported);
+  }
+}
+
+function privateKeyUsages(resolved) {
+  return resolved.deriveBits ? ['deriveBits'] : ['deriveKey'];
+}
 
 function bytesToBase64(bytes) {
   const bin = String.fromCharCode(...new Uint8Array(bytes));
@@ -21,13 +59,8 @@ function base64ToBytes(b64) {
 }
 
 async function fingerprintFromJwk(publicKeyJwk) {
-  const key = await crypto.subtle.importKey(
-    'jwk',
-    publicKeyJwk,
-    ECDH_PARAMS,
-    true,
-    [],
-  );
+  const { keyAlg } = await resolveX25519();
+  const key = await crypto.subtle.importKey('jwk', publicKeyJwk, keyAlg, true, []);
   const spki = await crypto.subtle.exportKey('spki', key);
   const hash = await crypto.subtle.digest('SHA-256', spki);
   const hex = Array.from(new Uint8Array(hash))
@@ -49,7 +82,12 @@ export function isLegacyKeyFormat(keys) {
  * Generates an E2EE keypair. Private JWK stays on device only.
  */
 export async function generateKeyPair() {
-  const keyPair = await crypto.subtle.generateKey(ECDH_PARAMS, true, ['deriveKey']);
+  const resolved = await resolveX25519();
+  const keyPair = await crypto.subtle.generateKey(
+    resolved.keyAlg,
+    true,
+    privateKeyUsages(resolved),
+  );
   const publicKeyJwk = await crypto.subtle.exportKey('jwk', keyPair.publicKey);
   const privateKeyJwk = await crypto.subtle.exportKey('jwk', keyPair.privateKey);
   const fingerprint = await fingerprintFromJwk(publicKeyJwk);
@@ -67,16 +105,25 @@ export async function generateKeyPair() {
 }
 
 async function importPrivateKey(privateKeyJwk) {
-  return crypto.subtle.importKey('jwk', privateKeyJwk, ECDH_PARAMS, false, ['deriveKey']);
+  const resolved = await resolveX25519();
+  return crypto.subtle.importKey(
+    'jwk',
+    privateKeyJwk,
+    resolved.keyAlg,
+    false,
+    privateKeyUsages(resolved),
+  );
 }
 
 async function importPublicKey(publicKeyJwk) {
-  return crypto.subtle.importKey('jwk', publicKeyJwk, ECDH_PARAMS, false, []);
+  const { keyAlg } = await resolveX25519();
+  return crypto.subtle.importKey('jwk', publicKeyJwk, keyAlg, false, []);
 }
 
 async function deriveAesKey(privateKey, publicKey) {
+  const { derivePublic } = await resolveX25519();
   const shared = await crypto.subtle.deriveBits(
-    { name: 'ECDH', public: publicKey },
+    { ...derivePublic, public: publicKey },
     privateKey,
     256,
   );
@@ -110,7 +157,7 @@ export async function encryptMessage(plaintext, senderPrivateKeyJwk, recipientPu
  */
 export async function decryptMessage(packet, recipientPrivateKeyJwk, senderPublicKeyJwk) {
   try {
-    if (!packet?.ciphertext) return '[Error: Empty Payload]';
+    if (!packet?.ciphertext) return MSG.decryptEmpty;
 
     const privateKey = await importPrivateKey(recipientPrivateKeyJwk);
     const publicKey = await importPublicKey(senderPublicKeyJwk);
@@ -125,7 +172,7 @@ export async function decryptMessage(packet, recipientPrivateKeyJwk, senderPubli
     return new TextDecoder().decode(plainBuffer);
   } catch (err) {
     console.error('Decryption failed:', err);
-    return '[Decryption Error: Invalid session key or corrupted frame]';
+    return MSG.decryptFailed;
   }
 }
 
@@ -167,9 +214,9 @@ export async function encryptGroupMessage(plaintext, groupKey) {
 
 export async function decryptGroupMessage(packet, groupKey) {
   try {
-    if (!packet?.ciphertext) return '[Error: Empty Payload]';
+    if (!packet?.ciphertext) return MSG.decryptEmpty;
     if (packet.keyId !== groupKey.keyId) {
-      return `[Decryption Error: Key mismatch. Message uses ${packet.keyId}, active is ${groupKey.keyId}]`;
+      return MSG.decryptGroupKeyMismatch;
     }
     const aesKey = await crypto.subtle.importKey(
       'jwk',
@@ -187,14 +234,13 @@ export async function decryptGroupMessage(packet, groupKey) {
     );
     return new TextDecoder().decode(plainBuffer);
   } catch {
-    return '[Decryption Error: Group key invalidated]';
+    return MSG.decryptGroupInvalid;
   }
 }
 
 /** Resolve peer public JWK from API key list or legacy string fingerprint. */
 export function resolvePeerPublicJwk(peerKeys) {
-  if (peerKeys?.length && peerKeys[0].public_key_jwk) {
-    return peerKeys[0].public_key_jwk;
-  }
-  return null;
+  const row = peerKeys?.[0];
+  if (!row) return null;
+  return row.public_key_jwk ?? row.publicKeyJwk ?? null;
 }
