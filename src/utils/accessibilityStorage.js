@@ -10,6 +10,7 @@ export const DEFAULT_ACCESSIBILITY = {
   reduceTransparency: false,
   strongFocus: false,
   underlineLinks: false,
+  dyslexicFont: true,
 };
 
 function normalizeTextSize(value) {
@@ -53,6 +54,7 @@ export function applyAccessibilitySettings(settings) {
   flag('data-a11y-reduce-transparency', s.reduceTransparency);
   flag('data-a11y-strong-focus', s.strongFocus);
   flag('data-a11y-underline-links', s.underlineLinks);
+  flag('data-a11y-classic-font', !s.dyslexicFont);
 
   if (s.textSize === 'default') root.removeAttribute('data-a11y-text-size');
   else root.setAttribute('data-a11y-text-size', s.textSize);

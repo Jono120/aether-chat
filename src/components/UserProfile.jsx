@@ -8,6 +8,8 @@ import {
   updateMyProfile,
 } from '../api/client';
 import { MSG } from '../utils/userMessages';
+import { isWebBrowser } from '../utils/platform';
+import WebAlbumBlockedBanner from './WebAlbumBlockedBanner';
 import ProfileChipSelect from './ProfileChipSelect';
 import {
   AGE_OPTIONS,
@@ -39,6 +41,7 @@ function fileToDataUrl(file) {
 
 export default function UserProfile({ onProfileSaved, setStealthMode }) {
   const { toast } = useToast();
+  const webBlocked = isWebBrowser();
   const fileInputRef = useRef(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -391,14 +394,16 @@ export default function UserProfile({ onProfileSaved, setStealthMode }) {
             <div className="settings-row settings-row--flush">
               <div>
                 <h4 className="settings-row-label">{MSG.profileAllowAlbum}</h4>
-                <p className="settings-row-desc">{MSG.profileAllowAlbumDesc}</p>
+                <p className="settings-row-desc">
+                  {webBlocked ? MSG.webAlbumBlockedInline : MSG.profileAllowAlbumDesc}
+                </p>
               </div>
               <label className="form-toggle">
                 <input
                   type="checkbox"
                   checked={form.hasSecureAlbum}
                   onChange={(e) => patchForm({ hasSecureAlbum: e.target.checked })}
-                  disabled={!form.allowAlbumMediaUpload}
+                  disabled={!form.allowAlbumMediaUpload || webBlocked}
                 />
                 <span className="form-toggle-slider" />
               </label>
@@ -407,7 +412,9 @@ export default function UserProfile({ onProfileSaved, setStealthMode }) {
             <div className="settings-row settings-row--flush">
               <div>
                 <h4 className="settings-row-label">{MSG.profileAllowAlbumMedia}</h4>
-                <p className="settings-row-desc">{MSG.profileAllowAlbumMediaDesc}</p>
+                <p className="settings-row-desc">
+                  {webBlocked ? MSG.webAlbumBlockedInline : MSG.profileAllowAlbumMediaDesc}
+                </p>
               </div>
               <label className="form-toggle">
                 <input
@@ -420,10 +427,12 @@ export default function UserProfile({ onProfileSaved, setStealthMode }) {
                       hasSecureAlbum: on ? form.hasSecureAlbum : false,
                     });
                   }}
+                  disabled={webBlocked}
                 />
                 <span className="form-toggle-slider" />
               </label>
             </div>
+            {webBlocked && <WebAlbumBlockedBanner compact />}
           </div>
         </section>
 

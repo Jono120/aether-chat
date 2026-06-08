@@ -96,6 +96,36 @@ export const MSG = {
   albumScreenshotWarning: 'Screenshot protection hid your private album.',
   albumProtectionOn: 'Screenshot protection is on for this album.',
 
+  // Private albums blocked on web — WebAlbumBlockedBanner.jsx, Grid, ChatRoom, UserProfile
+  webAlbumBlockedTitle: 'Private albums need the mobile app',
+  webAlbumBlockedBody:
+    'Web browsers cannot protect ephemeral photos the way our mobile app can. Profile photos still work here — use the Aether app for private albums.',
+  webAlbumBlockedCta: 'Mobile app coming soon — check back for download links.',
+  webAlbumBlockedInline: 'Available in the mobile app only.',
+  webAlbumBlockedToast: 'Private albums open in the mobile app. Showing chat instead.',
+
+  // Discovery filters — PrivacyCenter.jsx, Grid.jsx, profileFilters.js
+  settingsDiscoveryFiltersTitle: 'Who you see on the grid',
+  settingsDiscoveryFiltersDesc: 'Narrow nearby profiles by age, gender, or interests. Empty filters show everyone.',
+  settingsDiscoveryAgeMin: 'Minimum age',
+  settingsDiscoveryAgeMax: 'Maximum age',
+  settingsDiscoveryAgeAny: 'Any',
+  settingsDiscoveryGenders: 'Genders',
+  settingsDiscoveryInterests: 'Interests',
+  settingsDiscoveryInterestMatch: 'Interest match',
+  settingsDiscoveryInterestMatchAny: 'Any selected',
+  settingsDiscoveryInterestMatchAll: 'All selected',
+  settingsDiscoveryDisplayTitle: 'What others see on cards',
+  settingsDiscoveryDisplayDesc: 'Hide fields on discovery cards and profile modals — your own profile is unchanged.',
+  settingsDiscoveryShowAge: 'Show age',
+  settingsDiscoveryShowGender: 'Show gender',
+  settingsDiscoveryShowInterests: 'Show interests',
+  settingsDiscoveryShowLookingFor: 'Show looking for',
+  settingsAlbumShieldWebNote:
+    'Screenshot blur for private albums only works in the mobile app. Albums are not available on web.',
+  gridFiltersButton: 'Filters',
+  gridFiltersEmpty: 'No profiles match your filters — try widening age or interests.',
+
   // ---------------------------------------------------------------------------
   // Account deletion toasts
   // PrivacyCenter.jsx (schedule / cancel deletion)
@@ -137,7 +167,7 @@ export const MSG = {
   // Settings → Accessibility — PrivacyCenter.jsx, accessibilityStorage.js
   settingsAccessibilityTitle: 'Accessibility',
   settingsAccessibilityDesc:
-    'Adjust theme, motion, contrast, text size, and focus to suit your needs. Changes apply immediately on this device.',
+    'Adjust theme, motion, contrast, reading font, text size, and focus to suit your needs. Changes apply immediately on this device.',
   settingsLightMode: 'Light mode',
   settingsLightModeDesc:
     'Use a brighter background and darker text instead of the default dark theme.',
@@ -160,6 +190,11 @@ export const MSG = {
     'Make it easier to see which button is selected when using the keyboard.',
   settingsUnderlineLinks: 'Underline links',
   settingsUnderlineLinksDesc: 'Show underlines on text links so they stand out more clearly.',
+  settingsDyslexicFont: 'Easier reading font',
+  settingsDyslexicFontDesc:
+    'Uses the Lexend typeface by default to improve reading fluency. Turn off to switch back to the classic Outfit font.',
+  settingsDyslexicFontPreview1: 'The quick brown fox jumps over the lazy dog.',
+  settingsDyslexicFontPreview2: 'Victor faxed very heavy pages.',
 
   // Settings → Discovery & location — PrivacyCenter.jsx, Grid.jsx (stealth)
   settingsDiscoveryTitle: 'Discovery & location',

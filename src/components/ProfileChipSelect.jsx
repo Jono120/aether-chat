@@ -1,28 +1,33 @@
 import React from 'react';
 
-export default function ProfileChipSelect({ options, value = [], onChange, ariaLabel }) {
+export default function ProfileChipSelect({ options, value = [], onChange, ariaLabel, disabled = false }) {
+  const normalized = options.map((option) =>
+    typeof option === 'string' ? { value: option, label: option } : option,
+  );
   const selected = new Set(value);
 
-  const toggle = (option) => {
-    const next = selected.has(option)
-      ? value.filter((v) => v !== option)
-      : [...value, option];
+  const toggle = (optionValue) => {
+    if (disabled) return;
+    const next = selected.has(optionValue)
+      ? value.filter((v) => v !== optionValue)
+      : [...value, optionValue];
     onChange(next);
   };
 
   return (
     <div className="profile-chip-group" role="group" aria-label={ariaLabel}>
-      {options.map((option) => {
-        const active = selected.has(option);
+      {normalized.map((option) => {
+        const active = selected.has(option.value);
         return (
           <button
-            key={option}
+            key={option.value}
             type="button"
             className={`profile-chip${active ? ' profile-chip--active' : ''}`}
             aria-pressed={active}
-            onClick={() => toggle(option)}
+            disabled={disabled}
+            onClick={() => toggle(option.value)}
           >
-            {option}
+            {option.label}
           </button>
         );
       })}

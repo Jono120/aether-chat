@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import Navigation from './components/Navigation';
 import Grid from './components/Grid';
 import ChatRoom from './components/ChatRoom';
@@ -17,6 +17,8 @@ import {
 } from './utils/authStorage';
 import {
   fetchMessagingPreferences,
+  fetchDiscoveryPreferences,
+  patchDiscoveryPreferences,
   fetchMyProfile,
   fetchNearbyProfiles,
   isApiEnabled,
@@ -49,6 +51,15 @@ import {
   loadMessagingPrefs,
   saveMessagingPrefs,
 } from './utils/messagingStorage';
+import {
+  loadDiscoveryPrefs,
+  saveDiscoveryPrefs,
+} from './utils/discoveryPrefsStorage';
+import {
+  applyDiscoveryFilters,
+  countActiveFilters,
+} from './utils/profileFilters';
+import { isWebBrowser } from './utils/platform';
 
 
 // this is the mock profiles for the app
@@ -153,6 +164,8 @@ export default function App() {
   const [albumScreenshotShield, setAlbumScreenshotShield] = useState(true);
   const [accessibility, setAccessibility] = useState(() => loadAccessibilitySettings());
   const [messagingPrefs, setMessagingPrefs] = useState(() => loadMessagingPrefs());
+  const [discoveryPrefs, setDiscoveryPrefs] = useState(() => loadDiscoveryPrefs());
+  const webAlbumToastShown = useRef(false);
   const [activeChatProfile, setActiveChatProfile] = useState(null);
   const [startWithAlbum, setStartWithAlbum] = useState(false);
   const [profiles, setProfiles] = useState(MOCK_PROFILES);
@@ -193,6 +206,16 @@ export default function App() {
   const handleMessagingPrefsChange = useCallback((next) => {
     setMessagingPrefs(next);
     saveMessagingPrefs(next);
+  }, []);
+
+  const handleDiscoveryPrefsChange = useCallback((next) => {
+    setDiscoveryPrefs(next);
+    saveDiscoveryPrefs(next);
+    if (isApiEnabled()) {
+      patchDiscoveryPreferences(next).catch((err) => {
+        console.warn('Discovery preferences sync failed', err);
+      });
+    }
   }, []);
 
   useEffect(() => {
@@ -347,6 +370,43 @@ export default function App() {
     };
   }, [authenticated]);
 
+  useEffect(() => {
+    if (!authenticated || !isApiEnabled()) return undefined;
+    let cancelled = false;
+    (async () => {
+      try {
+        const prefs = await fetchDiscoveryPreferences();
+        if (cancelled || !prefs) return;
+        const merged = {
+          discoveryFilters: {
+            ...loadDiscoveryPrefs().discoveryFilters,
+            ...prefs.discoveryFilters,
+          },
+          profileViewPrefs: {
+            ...loadDiscoveryPrefs().profileViewPrefs,
+            ...prefs.profileViewPrefs,
+          },
+        };
+        setDiscoveryPrefs(merged);
+        saveDiscoveryPrefs(merged);
+      } catch (err) {
+        console.warn('Discovery preferences load failed', err);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [authenticated]);
+
+  const visibleProfiles = useMemo(
+    () => applyDiscoveryFilters(profiles, discoveryPrefs.discoveryFilters),
+    [profiles, discoveryPrefs.discoveryFilters],
+  );
+  const filtersExcludeAll =
+    countActiveFilters(discoveryPrefs.discoveryFilters) > 0 &&
+    visibleProfiles.length === 0 &&
+    profiles.length > 0;
+
   const handleRotateKeys = async () => {
     if (isApiEnabled() && currentUser.keys?.deviceId) {
       try {
@@ -387,7 +447,15 @@ export default function App() {
 
   const handleSelectChat = (profile, openAlbum = false) => {
     setActiveChatProfile(profile);
-    setStartWithAlbum(openAlbum);
+    if (openAlbum && isWebBrowser()) {
+      setStartWithAlbum(true);
+      if (!webAlbumToastShown.current) {
+        webAlbumToastShown.current = true;
+        toast(MSG.webAlbumBlockedToast, { type: 'info' });
+      }
+    } else {
+      setStartWithAlbum(openAlbum);
+    }
     setCurrentTab('chat');
   };
 
@@ -518,12 +586,15 @@ export default function App() {
           <Grid
             stealthMode={stealthMode}
             onSelectChat={handleSelectChat}
-            profiles={profiles}
+            profiles={visibleProfiles}
             profilesLoading={profilesLoading}
             profilesError={profilesError}
             onRefreshProfiles={loadProfiles}
             onBlockUser={handleBlockProfile}
             onReportUser={handleReportProfile}
+            filtersExcludeAll={filtersExcludeAll}
+            discoveryPrefs={discoveryPrefs}
+            onDiscoveryPrefsChange={handleDiscoveryPrefsChange}
           />
         )}
 
@@ -561,6 +632,8 @@ export default function App() {
             onAccessibilityChange={handleAccessibilityChange}
             messagingPrefs={messagingPrefs}
             onMessagingPrefsChange={handleMessagingPrefsChange}
+            discoveryPrefs={discoveryPrefs}
+            onDiscoveryPrefsChange={handleDiscoveryPrefsChange}
             onNavigateTab={(tab) => {
               setCurrentTab(tab);
               setActiveChatProfile(null);

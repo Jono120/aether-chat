@@ -42,6 +42,8 @@ erDiagram
     text bio
     text role_label
     int age
+    text gender
+    jsonb looking_for
     text fuzzed_distance_label
     boolean discoverable
     jsonb avatar_colors
@@ -52,6 +54,8 @@ erDiagram
     uuid user_id PK_FK
     text fuzzing_strategy
     boolean album_shield_enabled
+    jsonb discovery_filters
+    jsonb profile_view_prefs
   }
   device_public_keys {
     uuid id PK
@@ -112,6 +116,20 @@ erDiagram
 ### `profiles`
 
 Discovery responses expose **fuzzed_distance_label** only — never raw coordinates. Server computes label from internal geo + `user_preferences.fuzzing_strategy`.
+
+| Column | Type | Notes |
+|--------|------|-------|
+| `gender` | TEXT | One of: `male`, `female`, `non-binary`, `trans-man`, `trans-woman`, `agender`, `genderqueer`, `prefer-not-to-say` |
+| `looking_for` | JSONB | Array of string labels (e.g. `Chats`, `Friends`, `Dating`) |
+
+### `user_preferences`
+
+| Column | Type | Notes |
+|--------|------|-------|
+| `discovery_filters` | JSONB | Optional `ageMin`, `ageMax`, `genders[]`, `interests[]`, `interestMatch` (`any` \| `all`); empty object = no filter |
+| `profile_view_prefs` | JSONB | Booleans: `showAge`, `showGender`, `showInterests`, `showLookingFor` (default all true) |
+
+Client-side filtering applies `discovery_filters` to nearby profiles today; server-side SQL filtering is a future scale-up.
 
 ### `device_public_keys`
 

@@ -31,6 +31,8 @@ import {
 } from '../utils/blockStorage';
 import { devPeerKeysFor, resolvePeerApiId } from '../utils/devPeerKeys';
 import { MSG } from '../utils/userMessages';
+import { isWebBrowser } from '../utils/platform';
+import WebAlbumBlockedBanner from './WebAlbumBlockedBanner';
 import { useRealtimeMessages } from '../hooks/useRealtimeMessages';
 import { useAlbumScreenshotGuard } from '../hooks/useAlbumScreenshotGuard';
 import {
@@ -66,11 +68,14 @@ export default function ChatRoom({
   readReceiptsEnabled = false,
 }) {
   const { toast, confirm } = useToast();
+  const webBlocked = isWebBrowser();
   const albumEnabled =
     myProfile?.hasSecureAlbum !== false && myProfile?.allowAlbumMediaUpload !== false;
+  const albumUiEnabled = albumEnabled && !webBlocked;
   // Navigation / View states
   const [selectedChat, setSelectedChat] = useState(null);
   const [showAlbum, setShowAlbum] = useState(false);
+  const [showWebAlbumBanner, setShowWebAlbumBanner] = useState(false);
   const [showWireInspector, setShowWireInspector] = useState(false);
 
   // Message and timing states
@@ -314,13 +319,20 @@ export default function ChatRoom({
           }
           await loadPeerKeys(activeChatProfile.id);
         }
-        if (startWithAlbum) setShowAlbum(true);
+        if (startWithAlbum) {
+          if (webBlocked) {
+            setShowWebAlbumBanner(true);
+            setShowAlbum(false);
+          } else {
+            setShowAlbum(true);
+          }
+        }
       } else {
         await selectDirectChat('julian', 'Julian');
       }
     };
     setupChat();
-  }, [activeChatProfile, startWithAlbum]);
+  }, [activeChatProfile, startWithAlbum, webBlocked]);
 
   useEffect(() => {
     const handleFocus = () => {
@@ -613,7 +625,7 @@ export default function ChatRoom({
       
       if (isApiEnabled()) {
         try {
-          const sas = await requestUploadSas(selectedFile.type || 'image/jpeg');
+          const sas = await requestUploadSas(selectedFile.type || 'image/jpeg', 'album');
           if (sas?.uploadUrl && stripResult.blob) {
             await fetch(sas.uploadUrl, {
               method: 'PUT',
@@ -796,7 +808,7 @@ export default function ChatRoom({
           </div>
 
           <div className="chat-header-actions">
-            {!selectedChat?.isGroup && albumEnabled && (
+            {!selectedChat?.isGroup && albumUiEnabled && (
               <button
                 onClick={() => setShowAlbum(!showAlbum)}
                 className={`chat-header-action-btn ${showAlbum ? 'chat-header-action-btn-active' : ''}`}
@@ -850,6 +862,7 @@ export default function ChatRoom({
             {!showAlbum ? (
               // --- Chat Pane View ---
               <>
+                {showWebAlbumBanner && <WebAlbumBlockedBanner compact />}
                 <div className="chat-messages-container custom-scrollbar">
                   {activeMessages.map((msg) => (
                     <div 
@@ -962,15 +975,17 @@ export default function ChatRoom({
                   </div>
 
                   <div className="chat-input-row">
-                    <label className="chat-media-btn" title="Upload Photo">
-                      <input 
-                        type="file" 
-                        accept="image/jpeg,image/png" 
-                        onChange={handleFileChange}
-                        className="file-input-hidden"
-                      />
-                      <Camera className="icon-md" />
-                    </label>
+                    {!webBlocked && (
+                      <label className="chat-media-btn" title="Upload Photo">
+                        <input
+                          type="file"
+                          accept="image/jpeg,image/png"
+                          onChange={handleFileChange}
+                          className="file-input-hidden"
+                        />
+                        <Camera className="icon-md" />
+                      </label>
+                    )}
 
                     <input
                       type="text"

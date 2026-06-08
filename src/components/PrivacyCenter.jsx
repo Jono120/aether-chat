@@ -36,7 +36,9 @@ import {
 } from '../utils/clientErrorReporting';
 import LegalLinks from './LegalLinks';
 import DiscoveryTutorial from './DiscoveryTutorial';
+import DiscoveryFilterControls from './DiscoveryFilterControls';
 import EncryptionTipsModal from './EncryptionTipsModal';
+import { isWebBrowser } from '../utils/platform';
 import ChatBackupPanel from './ChatBackupPanel';
 import { MSG } from '../utils/userMessages';
 import { SELF_DESTRUCT_OPTIONS } from '../utils/messagingStorage';
@@ -118,6 +120,8 @@ export default function PrivacyCenter({
   onAccessibilityChange,
   messagingPrefs,
   onMessagingPrefsChange,
+  discoveryPrefs,
+  onDiscoveryPrefsChange,
   onNavigateTab,
   onChatBackupRestore,
 }) {
@@ -315,6 +319,20 @@ export default function PrivacyCenter({
             ))}
           </div>
         </div>
+
+        {discoveryPrefs && onDiscoveryPrefsChange && (
+          <DiscoveryFilterControls
+            discoveryFilters={discoveryPrefs.discoveryFilters}
+            profileViewPrefs={discoveryPrefs.profileViewPrefs}
+            onFiltersChange={(discoveryFilters) =>
+              onDiscoveryPrefsChange({ ...discoveryPrefs, discoveryFilters })
+            }
+            onViewPrefsChange={(profileViewPrefs) =>
+              onDiscoveryPrefsChange({ ...discoveryPrefs, profileViewPrefs })
+            }
+            disabled={isDeleting}
+          />
+        )}
       </div>
     </div>
   );
@@ -413,14 +431,16 @@ export default function PrivacyCenter({
         <div className="settings-row settings-row--flush">
           <div>
             <h4 className="settings-row-label">{MSG.settingsAlbumShield}</h4>
-            <p className="settings-row-desc">{MSG.settingsAlbumShieldDesc}</p>
+            <p className="settings-row-desc">
+              {isWebBrowser() ? MSG.settingsAlbumShieldWebNote : MSG.settingsAlbumShieldDesc}
+            </p>
           </div>
           <label className="form-toggle">
             <input
               type="checkbox"
               checked={albumScreenshotShield}
               onChange={() => setAlbumScreenshotShield(!albumScreenshotShield)}
-              disabled={isDeleting}
+              disabled={isDeleting || isWebBrowser()}
             />
             <span className="form-toggle-slider" />
           </label>
@@ -490,6 +510,26 @@ export default function PrivacyCenter({
           MSG.settingsUnderlineLinks,
           MSG.settingsUnderlineLinksDesc,
         )}
+
+        <div className="settings-row settings-row--compact">
+          <div>
+            <h4 className="settings-row-label">{MSG.settingsDyslexicFont}</h4>
+            <p className="settings-row-desc">{MSG.settingsDyslexicFontDesc}</p>
+            <div className="a11y-font-preview" aria-hidden="true">
+              <p>{MSG.settingsDyslexicFontPreview1}</p>
+              <p>{MSG.settingsDyslexicFontPreview2}</p>
+            </div>
+          </div>
+          <label className="form-toggle">
+            <input
+              type="checkbox"
+              checked={Boolean(accessibility.dyslexicFont)}
+              onChange={() => patchAccessibility({ dyslexicFont: !accessibility.dyslexicFont })}
+              disabled={isDeleting}
+            />
+            <span className="form-toggle-slider" />
+          </label>
+        </div>
 
         <div className="u-flex-col u-gap-sm">
           <span className="section-label">{MSG.settingsTextSizeLabel}</span>
@@ -578,6 +618,7 @@ export default function PrivacyCenter({
         lightMode: Boolean(accessibility?.lightMode),
         reduceMotion: Boolean(accessibility?.reduceMotion),
         textSize: accessibility?.textSize ?? 'default',
+        dyslexicFont: Boolean(accessibility?.dyslexicFont),
       },
       apiEnabled: isApiEnabled(),
     };

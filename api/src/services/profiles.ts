@@ -1,6 +1,15 @@
 import { pool } from '../db/pool.js';
 
-const VALID_GENDERS = new Set(['male', 'female', 'non-binary', 'prefer-not-to-say']);
+export const VALID_GENDERS = new Set([
+  'male',
+  'female',
+  'non-binary',
+  'trans-man',
+  'trans-woman',
+  'agender',
+  'genderqueer',
+  'prefer-not-to-say',
+]);
 
 export type ProfileDto = {
   id: string;

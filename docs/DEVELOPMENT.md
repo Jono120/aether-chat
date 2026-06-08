@@ -200,5 +200,6 @@ Run at **desktop (≥768px)** and **mobile (<768px)** unless noted.
 | V8 | **Chat messages:** new sent/received bubbles use `.message-enter` micro-animation |
 | V9 | **Modals:** profile modal and panic modal trap focus; Escape closes; backdrop click closes profile modal |
 | V10 | **Scrollbars:** chat contact list, message pane, album viewport use `.custom-scrollbar` styling |
+| V11 | **Easier reading font:** Lexend is the default app font; Settings → Accessibility → toggle off **Easier reading font** to verify classic Outfit font; wire inspector and EXIF panels stay monospace; setting persists after reload |
 
 Last verified: 2026-06-02 — `npm run build` passed; docs aligned with React 19 / Vite 8 client-only prototype.

@@ -124,15 +124,20 @@
   margin: 0;
   padding: 0;
   box-sizing: border-box;
-  font-family: 'Outfit', 'Inter', system-ui, -apple-system, sans-serif;
+  font-family: 'Lexend', 'Inter', system-ui, -apple-system, sans-serif;
   -webkit-font-smoothing: antialiased;
+}
+
+html {
+  line-height: 1.65;
+  letter-spacing: 0.03em;
 }
 
 body {
   background-color: var(--bg-primary);
   color: var(--text-primary);
   overflow-x: hidden;
-  line-height: 1.5;
+  line-height: inherit;
   min-height: 100vh;
 }
 
@@ -381,7 +386,7 @@ textarea:focus-visible,
   font-weight: 800;
   letter-spacing: -0.025em;
   color: var(--text-primary);
-  font-family: 'Outfit', sans-serif;
+  font-family: inherit;
 }
 
 .logo-badge {
@@ -606,13 +611,52 @@ textarea:focus-visible,
   font-size: 1.1rem;
   font-weight: 700;
   color: var(--text-primary);
-  font-family: 'Outfit', sans-serif;
+  font-family: inherit;
 }
 
 .grid-section-desc {
   font-size: 0.75rem;
   color: var(--text-secondary);
   margin-top: 0.15rem;
+}
+
+.grid-section-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.grid-filters-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.grid-filters-btn-active {
+  border-color: var(--accent-cyan);
+}
+
+.grid-filters-panel {
+  padding: 1rem;
+  margin-bottom: 1rem;
+  border-radius: var(--radius-lg);
+}
+
+.discovery-filter-age-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+}
+
+.web-album-blocked-cta {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-top: 0.5rem;
+  font-size: 0.8rem;
+  opacity: 0.9;
 }
 
 .discovery-grid {
@@ -2322,6 +2366,7 @@ textarea:focus-visible,
 
 .auth-legal-links {
   margin-top: 1rem;
+  text-align: center;
 }
 
 .auth-legal-consent {
@@ -3920,6 +3965,36 @@ html[data-a11y-text-size='large'] {
 
 html[data-a11y-text-size='extra'] {
   font-size: 118.75%;
+}
+
+.font-mono,
+.wire-packet-box,
+.exif-meta-fields,
+.key-ring-pre,
+.key-fingerprint-val,
+.countdown-timer-val,
+.album-photo-timer-overlay {
+  font-family: monospace;
+}
+
+html[data-a11y-classic-font='true'] {
+  line-height: 1.5;
+  letter-spacing: normal;
+}
+
+html[data-a11y-classic-font='true'] *:not(.font-mono):not(.font-mono *) {
+  font-family: 'Outfit', 'Inter', system-ui, -apple-system, sans-serif;
+}
+
+.a11y-font-preview {
+  margin-top: 0.5rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--glass-border);
+  border-radius: 8px;
+  background-color: var(--bg-secondary);
+  font-size: 0.85rem;
+  line-height: 1.65;
+  color: var(--text-primary);
 }
 
 html[data-a11y-high-contrast='true'] {

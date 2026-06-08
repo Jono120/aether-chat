@@ -68,9 +68,21 @@ Feature reference for stakeholders and evaluators. For security boundaries see [
 
 **What it shows:** Timed photo cards; blur overlay when window loses focus (screen shield).
 
-**How to trigger:** Profile modal **Secure Album**, or album icon in chat header when linked from Grid.
+**How to trigger:** Profile modal **Secure Album**, or album icon in chat header when linked from Grid — **native app only**.
 
-**Implementation note:** `albumPhotos` mock data; blur when `albumScreenshotShield` (Privacy Centre) is on and the window loses focus or **Test Blur Shield** is used — not OS-level screenshot blocking.
+**Web policy:** Private albums are blocked on web browsers. The Grid **Album** button is disabled with an explanatory banner; chat hides the album tab and album uploads. Profile avatars still work on web. The API rejects album upload SAS requests when `X-Aether-Client: web` and `purpose: album`.
+
+**Implementation note:** `albumPhotos` mock data; blur when `albumScreenshotShield` (Privacy Centre) is on and the window loses focus — native app only. Platform detection via `src/utils/platform.js` (`Capacitor.isNativePlatform()`).
+
+---
+
+## Discovery filters and display toggles
+
+**What it shows:** Age, gender, and interest filters on the grid; toggles to hide age, gender, interests, or looking-for on cards and profile modals.
+
+**How to trigger:** **Settings → Discovery** for full controls; **Filters** button on the Grid for quick filter edits.
+
+**Implementation note:** Preferences stored in `user_preferences.discovery_filters` and `profile_view_prefs` (migration `009_discovery_preferences.sql`); client helpers in `profileFilters.js` and `discoveryPrefsStorage.js`. Filtering is client-side for current list sizes.
 
 ---
 
@@ -121,6 +133,16 @@ Feature reference for stakeholders and evaluators. For security boundaries see [
 **How to trigger:** Privacy Centre → request account deletion; cancel restores stealth off.
 
 **Implementation note:** `aether_deletion_scheduled` ISO timestamp; `calculateTimeRemaining` calls `onPanicTrigger` when expired.
+
+---
+
+## Accessibility (Privacy Centre)
+
+**What it shows:** Theme, motion, contrast, transparency, focus, link styling, dyslexia-friendly reading font (Lexend), and text size controls.
+
+**How to trigger:** **Security** bottom nav → Privacy Centre → **Accessibility** section.
+
+**Implementation note:** Device-local preferences in `aether_accessibility` (`src/utils/accessibilityStorage.js`); applied via `data-a11y-*` attributes on `document.documentElement`. The app uses **Lexend** by default with increased line-height and letter-spacing; **Easier reading font** is on by default and can be turned off to restore the classic Outfit font. Wire inspector, EXIF meta, and key-ring monospace areas stay monospace.
 
 ---
 

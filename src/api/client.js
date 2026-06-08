@@ -1,4 +1,5 @@
 import { loadSession, clearSession } from '../utils/authStorage.js';
+import { CLIENT_PLATFORM_HEADER, clientPlatformHeaderValue } from '../utils/platform.js';
 
 const API_BASE = import.meta.env.VITE_API_URL ?? '';
 const DEV_USER_ID = import.meta.env.VITE_DEV_USER_ID ?? 'dev-user-1';
@@ -14,7 +15,10 @@ function isApiEnabled() {
 }
 
 function authHeaders() {
-  const headers = { 'Content-Type': 'application/json' };
+  const headers = {
+    'Content-Type': 'application/json',
+    [CLIENT_PLATFORM_HEADER]: clientPlatformHeaderValue(),
+  };
   const session = loadSession();
 
   if (session?.token) {
@@ -168,10 +172,10 @@ export async function sendMessage(conversationId, envelope) {
   });
 }
 
-export async function requestUploadSas(contentType = 'image/jpeg') {
+export async function requestUploadSas(contentType = 'image/jpeg', purpose = 'avatar') {
   return request('/api/v1/media/upload-sas', {
     method: 'POST',
-    body: JSON.stringify({ contentType }),
+    body: JSON.stringify({ contentType, purpose }),
   });
 }
 
@@ -219,6 +223,17 @@ export async function patchMessagingPreferences(readReceiptsEnabled) {
   return request('/api/v1/users/me/messaging-preferences', {
     method: 'PATCH',
     body: JSON.stringify({ readReceiptsEnabled }),
+  });
+}
+
+export async function fetchDiscoveryPreferences() {
+  return request('/api/v1/users/me/discovery-preferences');
+}
+
+export async function patchDiscoveryPreferences(payload) {
+  return request('/api/v1/users/me/discovery-preferences', {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
   });
 }
 

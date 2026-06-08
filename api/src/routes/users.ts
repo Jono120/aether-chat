@@ -7,6 +7,10 @@ import {
   unblockUser,
 } from '../services/moderation.js';
 import {
+  getDiscoveryPreferences,
+  patchDiscoveryPreferences,
+} from '../services/discoveryPreferences.js';
+import {
   getReadReceiptsPreference,
   setReadReceiptsPreference,
 } from '../services/readReceipts.js';
@@ -61,4 +65,22 @@ usersRouter.patch('/me/messaging-preferences', requireAuth, async (req, res) => 
   }
   const readReceiptsEnabled = await getReadReceiptsPreference(req.authUser!.id);
   res.json({ readReceiptsEnabled });
+});
+
+usersRouter.get('/me/discovery-preferences', requireAuth, async (req, res) => {
+  const prefs = await getDiscoveryPreferences(req.authUser!.id);
+  res.json(prefs);
+});
+
+usersRouter.patch('/me/discovery-preferences', requireAuth, async (req, res) => {
+  try {
+    const prefs = await patchDiscoveryPreferences(req.authUser!.id, {
+      discoveryFilters: req.body?.discoveryFilters,
+      profileViewPrefs: req.body?.profileViewPrefs,
+    });
+    res.json(prefs);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Invalid discovery preferences';
+    res.status(400).json({ error: message });
+  }
 });
