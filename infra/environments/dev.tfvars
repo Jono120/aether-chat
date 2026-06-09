@@ -13,3 +13,6 @@ tags = {
 enable_backend = true
 enable_cosmos  = false
 enable_redis   = false
+postgres_allow_azure_services = false
+# Restrict dev PG to team IPs — set before using real data:
+# postgres_allowed_ip_addresses = { home = "203.0.113.10" }

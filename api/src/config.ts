@@ -26,16 +26,23 @@ export const config = {
   serviceBusConnectionString: process.env.SERVICE_BUS_CONNECTION_STRING ?? '',
   serviceBusDeletionQueue: process.env.SERVICE_BUS_DELETION_QUEUE ?? 'account-deletion',
   corsOrigin: process.env.CORS_ORIGIN ?? 'http://localhost:5173',
+  redisUrl: process.env.REDIS_URL ?? '',
   mediaContainer: process.env.MEDIA_CONTAINER ?? 'media',
   mediaSasMinutes: Number(process.env.MEDIA_SAS_MINUTES ?? 15),
   mediaDefaultTtlDays: Number(process.env.MEDIA_DEFAULT_TTL_DAYS ?? 7),
   appPublicUrl: process.env.APP_PUBLIC_URL ?? 'http://localhost:5173',
+  iosAppStoreUrl: process.env.IOS_APP_STORE_URL ?? '',
+  androidPlayStoreUrl: process.env.ANDROID_PLAY_STORE_URL ?? '',
   smtpHost: process.env.SMTP_HOST ?? '',
   smtpPort: Number(process.env.SMTP_PORT ?? 587),
   smtpUser: process.env.SMTP_USER ?? '',
   smtpPass: process.env.SMTP_PASS ?? '',
   smtpFrom: process.env.SMTP_FROM ?? 'noreply@aether.local',
   supportAlertEmail: process.env.SUPPORT_ALERT_EMAIL ?? process.env.ADMIN_EMAIL ?? '',
+  geoCountryHeaders: (process.env.GEO_COUNTRY_HEADERS ?? 'cf-ipcountry,x-country-code,x-forwarded-country')
+    .split(',')
+    .map((h) => h.trim().toLowerCase())
+    .filter(Boolean),
 };
 
 const INSECURE_JWT_SECRETS = new Set([
@@ -71,5 +78,18 @@ export function validateConfig(): void {
     /postgresql:\/\/aetheradmin:aether@/.test(config.databaseUrl)
   ) {
     throw new Error('DATABASE_URL must point to a production database with strong credentials');
+  }
+
+  if (!config.corsOrigin || config.corsOrigin.includes('*')) {
+    throw new Error('CORS_ORIGIN must be a single explicit origin in production (wildcards not allowed)');
+  }
+
+  try {
+    const origin = new URL(config.corsOrigin);
+    if (origin.protocol !== 'https:') {
+      throw new Error('CORS_ORIGIN must use https in production');
+    }
+  } catch {
+    throw new Error('CORS_ORIGIN must be a valid URL in production');
   }
 }

@@ -12,6 +12,8 @@ on:
       - package-lock.json
       - vite.config.js
       - eslint.config.js
+      - mobile/capacitor.config.ts
+      - scripts/mobile-*.mjs
       - .github/workflows/deploy-app.yml
   workflow_dispatch:
 
@@ -42,6 +44,8 @@ jobs:
         env:
           VITE_API_URL: ${{ vars.VITE_API_URL }}
           VITE_SIGNALR_URL: ${{ vars.VITE_SIGNALR_URL }}
+          VITE_IOS_APP_STORE_URL: ${{ vars.VITE_IOS_APP_STORE_URL }}
+          VITE_ANDROID_PLAY_STORE_URL: ${{ vars.VITE_ANDROID_PLAY_STORE_URL }}
         run: npm run build
 
       - name: Deploy to Azure Static Web Apps

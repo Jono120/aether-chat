@@ -10,7 +10,7 @@ import {
   User,
   Eye,
 } from 'lucide-react';
-import { MSG } from '../utils/userMessages';
+import { useTranslation } from '../i18n/index.js';
 import {
   loadDiscoveryTutorial,
   saveDiscoveryTutorial,
@@ -25,18 +25,19 @@ const STEP_META = [
   { id: 'settings', icon: Settings, actionTab: 'privacy' },
 ];
 
-function stepCopy(id) {
+function stepCopy(id, t) {
   const map = {
-    profile: { title: MSG.tutorialStepProfileTitle, body: MSG.tutorialStepProfileBody },
-    visibility: { title: MSG.tutorialStepVisibilityTitle, body: MSG.tutorialStepVisibilityBody },
-    grid: { title: MSG.tutorialStepGridTitle, body: MSG.tutorialStepGridBody },
-    messages: { title: MSG.tutorialStepMessagesTitle, body: MSG.tutorialStepMessagesBody },
-    settings: { title: MSG.tutorialStepSettingsTitle, body: MSG.tutorialStepSettingsBody },
+    profile: { title: t('tutorialStepProfileTitle'), body: t('tutorialStepProfileBody') },
+    visibility: { title: t('tutorialStepVisibilityTitle'), body: t('tutorialStepVisibilityBody') },
+    grid: { title: t('tutorialStepGridTitle'), body: t('tutorialStepGridBody') },
+    messages: { title: t('tutorialStepMessagesTitle'), body: t('tutorialStepMessagesBody') },
+    settings: { title: t('tutorialStepSettingsTitle'), body: t('tutorialStepSettingsBody') },
   };
   return map[id] ?? { title: '', body: '' };
 }
 
 export default function DiscoveryTutorial({ onNavigateTab, disabled = false }) {
+  const { t } = useTranslation();
   const [state, setState] = useState(() => loadDiscoveryTutorial());
 
   useEffect(() => {
@@ -85,14 +86,14 @@ export default function DiscoveryTutorial({ onNavigateTab, disabled = false }) {
   if (state.completed && state.collapsed) {
     return (
       <div className="discovery-tutorial discovery-tutorial--compact">
-        <p className="discovery-tutorial-done-text">{MSG.tutorialCompleteShort}</p>
+        <p className="discovery-tutorial-done-text">{t('tutorialCompleteShort')}</p>
         <button
           type="button"
           className="btn btn-secondary btn-sm"
           onClick={showAgain}
           disabled={disabled}
         >
-          {MSG.tutorialShowAgain}
+          {t('tutorialShowAgain')}
         </button>
       </div>
     );
@@ -108,9 +109,9 @@ export default function DiscoveryTutorial({ onNavigateTab, disabled = false }) {
           <BookOpen className="icon-md text-violet" aria-hidden />
           <div>
             <h4 id="discovery-tutorial-title" className="discovery-tutorial-title">
-              {MSG.tutorialTitle}
+              {t('tutorialTitle')}
             </h4>
-            <p className="discovery-tutorial-intro">{MSG.tutorialIntro}</p>
+            <p className="discovery-tutorial-intro">{t('tutorialIntro')}</p>
           </div>
         </div>
         <button
@@ -118,7 +119,7 @@ export default function DiscoveryTutorial({ onNavigateTab, disabled = false }) {
           className="icon-btn-ctrl discovery-tutorial-collapse-btn"
           onClick={toggleCollapsed}
           aria-expanded={!state.collapsed}
-          aria-label={state.collapsed ? MSG.tutorialExpand : MSG.tutorialCollapse}
+          aria-label={state.collapsed ? t('tutorialExpand') : t('tutorialCollapse')}
         >
           {state.collapsed ? <ChevronDown className="icon-md" /> : <ChevronUp className="icon-md" />}
         </button>
@@ -132,7 +133,7 @@ export default function DiscoveryTutorial({ onNavigateTab, disabled = false }) {
             aria-valuenow={checkedCount}
             aria-valuemin={0}
             aria-valuemax={totalSteps}
-            aria-label={MSG.tutorialProgressLabel}
+            aria-label={t('tutorialProgressLabel')}
           >
             <div
               className="discovery-tutorial-progress-fill"
@@ -140,12 +141,12 @@ export default function DiscoveryTutorial({ onNavigateTab, disabled = false }) {
             />
           </div>
           <p className="discovery-tutorial-progress-text">
-            {MSG.tutorialProgress(checkedCount, totalSteps)}
+            {t('tutorialProgress', { done: checkedCount, total: totalSteps })}
           </p>
 
           <ol className="discovery-tutorial-steps">
             {STEP_META.map(({ id, icon: Icon, actionTab }, index) => {
-              const { title, body } = stepCopy(id);
+              const { title, body } = stepCopy(id, t);
               const done = state.checkedSteps.includes(id);
               return (
                 <li
@@ -158,7 +159,7 @@ export default function DiscoveryTutorial({ onNavigateTab, disabled = false }) {
                     onClick={() => toggleStep(id)}
                     disabled={disabled}
                     aria-pressed={done}
-                    aria-label={done ? MSG.tutorialStepDone : MSG.tutorialStepMarkDone}
+                    aria-label={done ? t('tutorialStepDone') : t('tutorialStepMarkDone')}
                   >
                     {done ? <Check className="icon-sm" /> : <span>{index + 1}</span>}
                   </button>
@@ -175,9 +176,9 @@ export default function DiscoveryTutorial({ onNavigateTab, disabled = false }) {
                         onClick={() => onNavigateTab(actionTab)}
                         disabled={disabled}
                       >
-                        {actionTab === 'profile' && MSG.tutorialGoToProfile}
-                        {actionTab === 'grid' && MSG.tutorialGoToGrid}
-                        {actionTab === 'chat' && MSG.tutorialGoToChat}
+                        {actionTab === 'profile' && t('tutorialGoToProfile')}
+                        {actionTab === 'grid' && t('tutorialGoToGrid')}
+                        {actionTab === 'chat' && t('tutorialGoToChat')}
                       </button>
                     )}
                   </div>
@@ -193,7 +194,7 @@ export default function DiscoveryTutorial({ onNavigateTab, disabled = false }) {
               onClick={markComplete}
               disabled={disabled}
             >
-              {allChecked ? MSG.tutorialFinish : MSG.tutorialMarkAllDone}
+              {allChecked ? t('tutorialFinish') : t('tutorialMarkAllDone')}
             </button>
           </div>
         </>

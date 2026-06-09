@@ -5,6 +5,22 @@ locals {
   pg_sku         = var.environment == "prod" ? "GP_Standard_D2s_v3" : "B_Standard_B1ms"
   redis_sku      = var.environment == "prod" ? "Standard" : "Basic"
   kv_purge       = var.environment == "prod"
+  use_kv_refs    = var.use_key_vault_secret_refs || var.environment != "dev"
+  internal_ingress = var.enable_network_isolation && var.environment != "dev"
+}
+
+module "network" {
+  count  = var.enable_backend && var.enable_network_isolation ? 1 : 0
+  source = "./modules/network"
+
+  name                = "vnet-${local.backend_suffix}"
+  location            = var.location
+  resource_group_name = azurerm_resource_group.app.name
+  enable_private_endpoints = var.environment != "dev"
+  postgresql_server_id     = module.postgresql[0].server_id
+  storage_account_id       = module.storage[0].id
+  key_vault_id             = module.key_vault[0].id
+  tags                     = local.common_tags
 }
 
 module "key_vault" {
@@ -29,8 +45,26 @@ module "postgresql" {
   resource_group_name           = azurerm_resource_group.app.name
   admin_password                = var.postgres_admin_password
   sku_name                      = local.pg_sku
-  public_network_access_enabled = var.environment != "prod"
+  public_network_access_enabled = var.environment == "dev" && !var.enable_network_isolation
   tags                          = local.common_tags
+}
+
+resource "azurerm_postgresql_flexible_server_firewall_rule" "postgres_allow_azure" {
+  count = var.enable_backend && var.postgres_allow_azure_services ? 1 : 0
+
+  name             = "allow-azure-services"
+  server_id        = module.postgresql[0].server_id
+  start_ip_address = "0.0.0.0"
+  end_ip_address   = "0.0.0.0"
+}
+
+resource "azurerm_postgresql_flexible_server_firewall_rule" "postgres_allowed_ips" {
+  for_each = var.enable_backend ? var.postgres_allowed_ip_addresses : {}
+
+  name             = "allow-${replace(each.key, ".", "-")}"
+  server_id        = module.postgresql[0].server_id
+  start_ip_address = each.value
+  end_ip_address   = each.value
 }
 
 module "storage" {
@@ -66,6 +100,13 @@ module "redis" {
   tags                = local.common_tags
 }
 
+resource "azurerm_key_vault_secret" "redis_url" {
+  count        = var.enable_backend && var.enable_redis ? 1 : 0
+  name         = "redis-url"
+  value        = module.redis[0].primary_connection_string
+  key_vault_id = module.key_vault[0].id
+}
+
 module "service_bus" {
   count  = var.enable_backend ? 1 : 0
   source = "./modules/messaging/service_bus"
@@ -88,6 +129,47 @@ module "signalr" {
   tags                = local.common_tags
 }
 
+locals {
+  api_env_vars = {
+    NODE_ENV                   = "production"
+    DEV_AUTH_BYPASS            = "false"
+    WORKER_PURGE_ONLY          = "true"
+    CORS_ORIGIN                = "https://${azurerm_static_web_app.app.default_host_name}"
+    MEDIA_CONTAINER            = module.storage[0].media_container_name
+    SERVICE_BUS_DELETION_QUEUE = module.service_bus[0].deletion_queue_name
+  }
+
+  api_kv_secret_refs = {
+    database-url            = azurerm_key_vault_secret.database_url[0].id
+    jwt-secret              = azurerm_key_vault_secret.jwt_secret[0].id
+    storage-connection-string = azurerm_key_vault_secret.storage_connection[0].id
+    signalr-connection-string = azurerm_key_vault_secret.signalr_connection[0].id
+    service-bus-connection-string = azurerm_key_vault_secret.service_bus_connection[0].id
+  }
+
+  api_kv_secret_env_map = merge(
+    {
+      DATABASE_URL                    = "database-url"
+      JWT_SECRET                      = "jwt-secret"
+      AZURE_STORAGE_CONNECTION_STRING = "storage-connection-string"
+      AZURE_SIGNALR_CONNECTION_STRING = "signalr-connection-string"
+      SERVICE_BUS_CONNECTION_STRING   = "service-bus-connection-string"
+    },
+    var.enable_redis ? { REDIS_URL = "redis-url" } : {},
+  )
+
+  api_inline_secrets = merge(
+    {
+      DATABASE_URL                    = azurerm_key_vault_secret.database_url[0].value
+      JWT_SECRET                      = azurerm_key_vault_secret.jwt_secret[0].value
+      AZURE_STORAGE_CONNECTION_STRING = azurerm_key_vault_secret.storage_connection[0].value
+      AZURE_SIGNALR_CONNECTION_STRING = azurerm_key_vault_secret.signalr_connection[0].value
+      SERVICE_BUS_CONNECTION_STRING   = azurerm_key_vault_secret.service_bus_connection[0].value
+    },
+    var.enable_redis ? { REDIS_URL = module.redis[0].primary_connection_string } : {},
+  )
+}
+
 module "container_app_api" {
   count  = var.enable_backend ? 1 : 0
   source = "./modules/compute/container_app_api"
@@ -101,22 +183,33 @@ module "container_app_api" {
   max_replicas        = var.environment == "prod" ? 10 : 3
   tags                = local.common_tags
 
-  env_vars = {
-    NODE_ENV              = "production"
-    DEV_AUTH_BYPASS       = "false"
-    WORKER_PURGE_ONLY     = "true"
-    CORS_ORIGIN           = "https://${azurerm_static_web_app.app.default_host_name}"
-    MEDIA_CONTAINER       = module.storage[0].media_container_name
-    SERVICE_BUS_DELETION_QUEUE = module.service_bus[0].deletion_queue_name
-  }
+  tenant_id                      = data.azurerm_client_config.current.tenant_id
+  key_vault_id                   = module.key_vault[0].id
+  acr_id                         = azurerm_container_registry.api[0].id
+  acr_login_server               = azurerm_container_registry.api[0].login_server
+  use_key_vault_refs             = local.use_kv_refs
+  key_vault_secret_refs          = local.use_kv_refs ? merge(local.api_kv_secret_refs, var.enable_redis ? { redis-url = azurerm_key_vault_secret.redis_url[0].id } : {}) : {}
+  key_vault_secret_env_map       = local.use_kv_refs ? local.api_kv_secret_env_map : {}
+  secret_env                     = local.use_kv_refs ? {} : local.api_inline_secrets
+  infrastructure_subnet_id       = var.enable_network_isolation ? module.network[0].container_apps_subnet_id : null
+  internal_load_balancer_enabled = local.internal_ingress
+  external_ingress               = !local.internal_ingress
 
-  secret_env = {
-    DATABASE_URL                     = azurerm_key_vault_secret.database_url[0].value
-    JWT_SECRET                       = azurerm_key_vault_secret.jwt_secret[0].value
-    AZURE_STORAGE_CONNECTION_STRING  = azurerm_key_vault_secret.storage_connection[0].value
-    AZURE_SIGNALR_CONNECTION_STRING  = azurerm_key_vault_secret.signalr_connection[0].value
-    SERVICE_BUS_CONNECTION_STRING    = azurerm_key_vault_secret.service_bus_connection[0].value
-  }
+  env_vars = local.api_env_vars
+}
+
+module "edge" {
+  count  = var.enable_backend && var.enable_edge_waf ? 1 : 0
+  source = "./modules/edge"
+
+  name                = "afd-${local.backend_suffix}"
+  resource_group_name = azurerm_resource_group.app.name
+  location            = var.location
+  backend_hostname    = module.container_app_api[0].fqdn
+  custom_domains      = var.api_custom_domains
+  enable_waf          = true
+  enable_apim         = var.enable_apim
+  tags                = local.common_tags
 }
 
 module "function_workers" {

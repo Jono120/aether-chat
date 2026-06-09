@@ -1,14 +1,14 @@
 // all gender options are added here:
 // TODO: add more gender options
 export const GENDER_OPTIONS = [
-  { value: 'male', label: 'Male' },
-  { value: 'female', label: 'Female' },
-  { value: 'non-binary', label: 'Non-binary' },
-  { value: 'trans-man', label: 'Trans-man' },
-  { value: 'trans-woman', label: 'Trans-woman' },
-  { value: 'agender', label: 'Agender' },
-  { value: 'genderqueer', label: 'Genderqueer' },
-  { value: 'prefer-not-to-say', label: 'Prefer not to say' },
+  { value: 'male', labelKey: 'profile.gender.male' },
+  { value: 'female', labelKey: 'profile.gender.female' },
+  { value: 'non-binary', labelKey: 'profile.gender.non-binary' },
+  { value: 'trans-man', labelKey: 'profile.gender.trans-man' },
+  { value: 'trans-woman', labelKey: 'profile.gender.trans-woman' },
+  { value: 'agender', labelKey: 'profile.gender.agender' },
+  { value: 'genderqueer', labelKey: 'profile.gender.genderqueer' },
+  { value: 'prefer-not-to-say', labelKey: 'profile.gender.prefer-not-to-say' },
 ];
 
 export const AGE_OPTIONS = Array.from({ length: 83 }, (_, i) => i + 18);
@@ -39,16 +39,20 @@ export const PRESET_INTERESTS = [
 // all looking for options are added here:
 // TODO: add more looking for options
 export const LOOKING_FOR_OPTIONS = [
-  'Chats',
-  'Friends',
-  'Coffee',
-  'Dating',
-  'Networking',
-  'Workout buddy',
-  'Events',
+  { value: 'Chats', labelKey: 'profile.lookingFor.Chats' },
+  { value: 'Friends', labelKey: 'profile.lookingFor.Friends' },
+  { value: 'Coffee', labelKey: 'profile.lookingFor.Coffee' },
+  { value: 'Dating', labelKey: 'profile.lookingFor.Dating' },
+  { value: 'Networking', labelKey: 'profile.lookingFor.Networking' },
+  { value: 'Workout buddy', labelKey: 'profile.lookingFor.Workout buddy' },
+  { value: 'Events', labelKey: 'profile.lookingFor.Events' },
 ];
 
 const PRESET_LOWER = new Set(PRESET_INTERESTS.map((i) => i.toLowerCase()));
+
+export function interestLabelKey(interest) {
+  return `profile.interest.${interest}`;
+}
 
 export function splitInterests(tags = []) {
   const selected = [];
@@ -82,10 +86,19 @@ export function mergeInterests(selected = [], customText = '') {
   return merged;
 }
 
+export function genderLabelKey(value) {
+  return GENDER_OPTIONS.find((g) => g.value === value)?.labelKey ?? null;
+}
+
+/** @deprecated Use genderLabelKey + t() */
 export function genderLabel(value) {
   return GENDER_OPTIONS.find((g) => g.value === value)?.label ?? null;
 }
 
 export function isPresetInterest(tag) {
   return PRESET_LOWER.has(String(tag).trim().toLowerCase());
+}
+
+export function presetInterestOptions() {
+  return PRESET_INTERESTS.map((value) => ({ value, labelKey: interestLabelKey(value) }));
 }

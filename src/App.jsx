@@ -7,7 +7,8 @@ import UserProfile from './components/UserProfile';
 import AuthPage from './components/AuthPage';
 import DemoModeBanner from './components/DemoModeBanner';
 import { generateKeyPair, isLegacyKeyFormat } from './utils/crypto';
-import { MSG, friendlyKeySetupError } from './utils/userMessages';
+import { useTranslation } from './i18n/index.js';
+import { friendlyKeySetupError } from './i18n/errors.js';
 import { useToast } from './context/ToastContext';
 import {
   clearSession,
@@ -19,8 +20,11 @@ import {
   fetchMessagingPreferences,
   fetchDiscoveryPreferences,
   patchDiscoveryPreferences,
+  fetchPrivacyPreferences,
+  patchPrivacyPreferences,
   fetchMyProfile,
   fetchNearbyProfiles,
+  fetchMobileLinksConfig,
   isApiEnabled,
   panicLockServer,
   registerPublicKey,
@@ -56,10 +60,16 @@ import {
   saveDiscoveryPrefs,
 } from './utils/discoveryPrefsStorage';
 import {
+  loadPrivacyPrefs,
+  savePrivacyPrefs,
+} from './utils/privacyPrefsStorage';
+import {
   applyDiscoveryFilters,
   countActiveFilters,
 } from './utils/profileFilters';
+import { applyFuzzingStrategyToProfiles } from './utils/fuzzingDisplay';
 import { isWebBrowser } from './utils/platform';
+import { setMobileStoreLinks } from './utils/mobileLinks';
 
 
 // this is the mock profiles for the app
@@ -78,6 +88,7 @@ const MOCK_PROFILES = [
     hasSecureAlbum: true,
     tags: ['Privacy First', 'Coffee', 'Cycling', 'Tech'],
     lookingFor: ['Coffee', 'Chats', 'Friends'],
+    socialLinks: { instagram: 'julian_cycles', bluesky: 'julian.bsky.social' },
   },
   {
     id: 'alex',
@@ -138,6 +149,7 @@ const MOCK_PROFILES = [
     hasSecureAlbum: false,
     tags: ['Gamer', 'Coding', 'Tea', 'Twitch'],
     lookingFor: ['Chats', 'Friends'],
+    socialLinks: { twitter: 'tristan_codes' },
   },
   {
     id: 'tyler',
@@ -158,10 +170,11 @@ const MOCK_PROFILES = [
 
 export default function App() {
   const { toast } = useToast();
+  const { t } = useTranslation();
 
   const [currentTab, setCurrentTab] = useState('grid');
   const [stealthMode, setStealthMode] = useState(false);
-  const [albumScreenshotShield, setAlbumScreenshotShield] = useState(true);
+  const [privacyPrefs, setPrivacyPrefs] = useState(() => loadPrivacyPrefs());
   const [accessibility, setAccessibility] = useState(() => loadAccessibilitySettings());
   const [messagingPrefs, setMessagingPrefs] = useState(() => loadMessagingPrefs());
   const [discoveryPrefs, setDiscoveryPrefs] = useState(() => loadDiscoveryPrefs());
@@ -169,6 +182,7 @@ export default function App() {
   const [activeChatProfile, setActiveChatProfile] = useState(null);
   const [startWithAlbum, setStartWithAlbum] = useState(false);
   const [profiles, setProfiles] = useState(MOCK_PROFILES);
+  const [nearbyTotal, setNearbyTotal] = useState(MOCK_PROFILES.length);
   const [profilesLoading, setProfilesLoading] = useState(false);
   const [profilesError, setProfilesError] = useState(null);
   const [myProfile, setMyProfile] = useState(loadLocalProfile);
@@ -208,19 +222,25 @@ export default function App() {
     saveMessagingPrefs(next);
   }, []);
 
-  const handleDiscoveryPrefsChange = useCallback((next) => {
-    setDiscoveryPrefs(next);
-    saveDiscoveryPrefs(next);
-    if (isApiEnabled()) {
-      patchDiscoveryPreferences(next).catch((err) => {
-        console.warn('Discovery preferences sync failed', err);
-      });
-    }
-  }, []);
-
   useEffect(() => {
     applyAccessibilitySettings(accessibility);
   }, [accessibility]);
+
+  useEffect(() => {
+    if (!isApiEnabled()) return undefined;
+    let cancelled = false;
+    (async () => {
+      try {
+        const links = await fetchMobileLinksConfig();
+        if (!cancelled && links) setMobileStoreLinks(links);
+      } catch (err) {
+        console.warn('Mobile links config load failed', err);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     setSessionExpiredHandler((message) => {
@@ -252,7 +272,7 @@ export default function App() {
     clearDeviceKeys();
     setCurrentUser({ username: 'You', keys: null });
     setCurrentTab('grid');
-    toast(MSG.authLogout, { type: 'info' });
+    toast(t('authLogout'), { type: 'info' });
   };
 
   const syncKeysToServer = useCallback(async (keys) => {
@@ -307,21 +327,52 @@ export default function App() {
     if (!isApiEnabled()) {
       setProfilesError(null);
       setProfiles(MOCK_PROFILES);
+      setNearbyTotal(MOCK_PROFILES.length);
       return;
     }
     setProfilesLoading(true);
     setProfilesError(null);
     try {
       const remote = await fetchNearbyProfiles();
-      setProfiles(Array.isArray(remote) ? remote : []);
+      setProfiles(Array.isArray(remote?.profiles) ? remote.profiles : []);
+      setNearbyTotal(typeof remote?.totalNearby === 'number' ? remote.totalNearby : 0);
     } catch (err) {
       console.warn('Profiles API failed', err);
       setProfiles([]);
+      setNearbyTotal(0);
       setProfilesError(err?.message ?? 'Could not load profiles');
     } finally {
       setProfilesLoading(false);
     }
   }, []);
+
+  const handleDiscoveryPrefsChange = useCallback((next) => {
+    setDiscoveryPrefs(next);
+    saveDiscoveryPrefs(next);
+    if (isApiEnabled()) {
+      patchDiscoveryPreferences(next)
+        .then(() => loadProfiles())
+        .catch((err) => {
+          console.warn('Discovery preferences sync failed', err);
+        });
+    }
+  }, [loadProfiles]);
+
+  const handlePrivacyPrefsChange = useCallback((updates) => {
+    setPrivacyPrefs((prev) => {
+      const next = { ...prev, ...updates };
+      savePrivacyPrefs(next);
+      if (isApiEnabled()) {
+        patchPrivacyPreferences(updates).catch((err) => {
+          console.warn('Privacy preferences sync failed', err);
+        });
+        if (updates.fuzzingStrategy !== undefined) {
+          loadProfiles();
+        }
+      }
+      return next;
+    });
+  }, [loadProfiles]);
 
   useEffect(() => {
     if (!authenticated) return undefined;
@@ -398,14 +449,45 @@ export default function App() {
     };
   }, [authenticated]);
 
-  const visibleProfiles = useMemo(
-    () => applyDiscoveryFilters(profiles, discoveryPrefs.discoveryFilters),
-    [profiles, discoveryPrefs.discoveryFilters],
-  );
-  const filtersExcludeAll =
-    countActiveFilters(discoveryPrefs.discoveryFilters) > 0 &&
-    visibleProfiles.length === 0 &&
-    profiles.length > 0;
+  useEffect(() => {
+    if (!authenticated || !isApiEnabled()) return undefined;
+    let cancelled = false;
+    (async () => {
+      try {
+        const prefs = await fetchPrivacyPreferences();
+        if (cancelled || !prefs) return;
+        const merged = { ...loadPrivacyPrefs(), ...prefs };
+        setPrivacyPrefs(merged);
+        savePrivacyPrefs(merged);
+      } catch (err) {
+        console.warn('Privacy preferences load failed', err);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [authenticated]);
+
+  const apiEnabled = isApiEnabled();
+  const visibleProfiles = useMemo(() => {
+    const filtered = apiEnabled
+      ? profiles
+      : applyDiscoveryFilters(profiles, discoveryPrefs.discoveryFilters);
+    if (apiEnabled) return filtered;
+    return applyFuzzingStrategyToProfiles(filtered, privacyPrefs.fuzzingStrategy);
+  }, [
+    apiEnabled,
+    profiles,
+    discoveryPrefs.discoveryFilters,
+    privacyPrefs.fuzzingStrategy,
+  ]);
+  const filtersExcludeAll = apiEnabled
+    ? countActiveFilters(discoveryPrefs.discoveryFilters) > 0 &&
+      profiles.length === 0 &&
+      nearbyTotal > 0
+    : countActiveFilters(discoveryPrefs.discoveryFilters) > 0 &&
+      visibleProfiles.length === 0 &&
+      profiles.length > 0;
 
   const handleRotateKeys = async () => {
     if (isApiEnabled() && currentUser.keys?.deviceId) {
@@ -416,7 +498,7 @@ export default function App() {
       }
     }
     await setupNewKeys();
-    toast(MSG.keysRotated, { type: 'success' });
+    toast(t('keysRotated'), { type: 'success' });
   };
 
   const handlePanicTrigger = async () => {
@@ -439,7 +521,7 @@ export default function App() {
     await setupNewKeys();
     setCurrentTab('grid');
 
-    toast(MSG.panicComplete, {
+    toast(t('panicComplete'), {
       type: 'success',
       duration: 6000,
     });
@@ -451,7 +533,7 @@ export default function App() {
       setStartWithAlbum(true);
       if (!webAlbumToastShown.current) {
         webAlbumToastShown.current = true;
-        toast(MSG.webAlbumBlockedToast, { type: 'info' });
+        toast(t('webAlbumBlockedToast'), { type: 'info' });
       }
     } else {
       setStartWithAlbum(openAlbum);
@@ -509,14 +591,14 @@ export default function App() {
             clearDeviceKeys().then(() => setupNewKeys());
           }}
         >
-          {MSG.retry}
+          {t('retry')}
         </button>
       </div>
     );
   }
 
   if (!currentUser.keys) {
-    return <div className="app-container">{MSG.keysSettingUp}</div>;
+    return <div className="app-container">{t('keysSettingUp')}</div>;
   }
 
   const handleBlockProfile = async (profile) => {
@@ -605,7 +687,7 @@ export default function App() {
             activeChatProfile={activeChatProfile}
             setActiveChatProfile={setActiveChatProfile}
             startWithAlbum={startWithAlbum}
-            albumScreenshotShield={albumScreenshotShield}
+            albumScreenshotShield={privacyPrefs.albumShieldEnabled}
             myProfile={myProfile}
             defaultSelfDestructSeconds={messagingPrefs.defaultSelfDestructSeconds}
             readReceiptsEnabled={messagingPrefs.readReceiptsEnabled}
@@ -626,8 +708,8 @@ export default function App() {
             onPanicTrigger={handlePanicTrigger}
             currentUser={currentUser}
             generateNewKeys={handleRotateKeys}
-            albumScreenshotShield={albumScreenshotShield}
-            setAlbumScreenshotShield={setAlbumScreenshotShield}
+            privacyPrefs={privacyPrefs}
+            onPrivacyPrefsChange={handlePrivacyPrefsChange}
             accessibility={accessibility}
             onAccessibilityChange={handleAccessibilityChange}
             messagingPrefs={messagingPrefs}

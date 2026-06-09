@@ -5,7 +5,7 @@
  * Private keys never leave the device; only public JWKs are registered with the API.
  */
 
-import { MSG } from './userMessages.js';
+import i18n from '../i18n/instance.js';
 
 const X25519_NATIVE = { name: 'X25519' };
 const X25519_ECDH = { name: 'ECDH', namedCurve: 'X25519' };
@@ -38,7 +38,7 @@ async function resolveX25519() {
     };
     return x25519Resolved;
   } catch {
-    throw new Error(MSG.keysBrowserUnsupported);
+    throw new Error(i18n.t('keysBrowserUnsupported'));
   }
 }
 
@@ -157,7 +157,7 @@ export async function encryptMessage(plaintext, senderPrivateKeyJwk, recipientPu
  */
 export async function decryptMessage(packet, recipientPrivateKeyJwk, senderPublicKeyJwk) {
   try {
-    if (!packet?.ciphertext) return MSG.decryptEmpty;
+    if (!packet?.ciphertext) return i18n.t('decryptEmpty');
 
     const privateKey = await importPrivateKey(recipientPrivateKeyJwk);
     const publicKey = await importPublicKey(senderPublicKeyJwk);
@@ -172,7 +172,7 @@ export async function decryptMessage(packet, recipientPrivateKeyJwk, senderPubli
     return new TextDecoder().decode(plainBuffer);
   } catch (err) {
     console.error('Decryption failed:', err);
-    return MSG.decryptFailed;
+    return i18n.t('decryptFailed');
   }
 }
 
@@ -214,9 +214,9 @@ export async function encryptGroupMessage(plaintext, groupKey) {
 
 export async function decryptGroupMessage(packet, groupKey) {
   try {
-    if (!packet?.ciphertext) return MSG.decryptEmpty;
+    if (!packet?.ciphertext) return i18n.t('decryptEmpty');
     if (packet.keyId !== groupKey.keyId) {
-      return MSG.decryptGroupKeyMismatch;
+      return i18n.t('decryptGroupKeyMismatch');
     }
     const aesKey = await crypto.subtle.importKey(
       'jwk',
@@ -234,7 +234,7 @@ export async function decryptGroupMessage(packet, groupKey) {
     );
     return new TextDecoder().decode(plainBuffer);
   } catch {
-    return MSG.decryptGroupInvalid;
+    return i18n.t('decryptGroupInvalid');
   }
 }
 

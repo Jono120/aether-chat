@@ -20,7 +20,11 @@ Fuzzed distance bands, generative avatars, stealth/invisible banner, profile det
 
 ### Privacy Centre
 
-Key ring display and rotation, location fuzzing strategy radios (UI-only), PIN/album shield toggles (UI-only), panic wipe, 30-day account deletion grace. Header tab: **Privacy Center**; bottom nav: **Security**. See [`src/components/PrivacyCenter.jsx`](src/components/PrivacyCenter.jsx).
+Key ring display and rotation, location fuzzing strategy (persisted), album screenshot shield (persisted; native only), panic wipe, 30-day account deletion grace. Header tab: **Privacy Center**; bottom nav: **Security**. See [`src/components/PrivacyCenter.jsx`](src/components/PrivacyCenter.jsx).
+
+### Native app
+
+Capacitor wrapper in [`mobile/`](mobile/) loads the production build for iOS/Android. Web browsers remain album-blocked; native sends `X-Aether-Client: native`.
 
 ---
 
@@ -64,12 +68,13 @@ Full script: [docs/FEATURES.md](docs/FEATURES.md).
 ```text
 api/                     # TypeScript REST API (optional)
 infra/                   # Terraform — SWA + backend modules
+mobile/                  # Capacitor iOS/Android shell (npm run mobile:setup)
 src/
 ├── App.jsx              # Tabs, profiles, keys, panic wipe
 ├── api/client.js        # Backend client when VITE_API_URL set
 ├── utils/crypto.js      # Web Crypto E2EE
 └── components/          # Grid, ChatRoom, PrivacyCenter, …
-docs/                    # BACKEND, DATA_MODEL, SECURITY, …
+docs/                    # BACKEND, SECURITY, ARCHITECTURE, …
 scripts/start-dev.mjs    # npm start launcher
 ```
 
@@ -91,8 +96,8 @@ Full index: [docs/README.md](docs/README.md).
 
 | Document | Description |
 |----------|-------------|
-| [docs/project-summary.md](docs/project-summary.md) | Executive summary, architecture overview, code map |
-| [docs/SECURITY.md](docs/SECURITY.md) | Prototype scope, simulated vs real behaviour, `localStorage`, threat model |
+| [docs/BACKEND.md](docs/BACKEND.md) | API services, data stores, schema, E2EE boundaries |
+| [docs/SECURITY.md](docs/SECURITY.md) | Client crypto, threat model, privacy expectations |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Components, state, flows, crypto path, CSS conventions |
 | [docs/FEATURES.md](docs/FEATURES.md) | Feature catalogue and 5-minute demo script |
 | [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) | Scripts, layout, conventions, extending mocks |

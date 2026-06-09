@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Lock, Fingerprint } from 'lucide-react';
-import { MSG } from '../utils/userMessages';
+import { useTranslation } from '../i18n/index.js';
 import {
   getAppSecurity,
   grantSensitiveUnlock,
@@ -10,6 +10,7 @@ import {
 import { verifyAccountPassword, isApiEnabled } from '../api/client';
 
 export default function SensitiveUnlock({ onUnlocked, verifyPasswordApi = true }) {
+  const { t } = useTranslation();
   const security = getAppSecurity();
   const [pin, setPin] = useState('');
   const [password, setPassword] = useState('');
@@ -25,7 +26,7 @@ export default function SensitiveUnlock({ onUnlocked, verifyPasswordApi = true }
       await fn();
       onUnlocked?.();
     } catch (err) {
-      setError(err?.message ?? MSG.securityUnlockFailed);
+      setError(err?.message ?? t('securityUnlockFailed'));
     } finally {
       setBusy(false);
     }
@@ -36,14 +37,14 @@ export default function SensitiveUnlock({ onUnlocked, verifyPasswordApi = true }
       <div className="sensitive-unlock-header">
         <Lock className="icon-md text-violet" />
         <div>
-          <h4 className="sensitive-unlock-title">{MSG.securityUnlockTitle}</h4>
-          <p className="sensitive-unlock-desc">{MSG.securityUnlockDesc}</p>
+          <h4 className="sensitive-unlock-title">{t('securityUnlockTitle')}</h4>
+          <p className="sensitive-unlock-desc">{t('securityUnlockDesc')}</p>
         </div>
       </div>
 
       {method === 'pin' && (
         <label className="profile-field">
-          <span className="profile-field-label">{MSG.securityPinLabel}</span>
+          <span className="profile-field-label">{t('securityPinLabel')}</span>
           <input
             type="password"
             inputMode="numeric"
@@ -58,7 +59,7 @@ export default function SensitiveUnlock({ onUnlocked, verifyPasswordApi = true }
 
       {method === 'password' && (
         <label className="profile-field">
-          <span className="profile-field-label">{MSG.securityPasswordLabel}</span>
+          <span className="profile-field-label">{t('securityPasswordLabel')}</span>
           <input
             type="password"
             className="profile-input"
@@ -77,7 +78,7 @@ export default function SensitiveUnlock({ onUnlocked, verifyPasswordApi = true }
           onClick={() => tryUnlock(unlockWithBiometric)}
         >
           <Fingerprint className="icon-sm" />
-          {MSG.securityBiometricUnlock}
+          {t('securityBiometricUnlock')}
         </button>
       )}
 
@@ -91,7 +92,7 @@ export default function SensitiveUnlock({ onUnlocked, verifyPasswordApi = true }
             disabled={busy || pin.length < 4}
             onClick={() => tryUnlock(() => unlockWithPin(pin))}
           >
-            {MSG.securityUnlockBtn}
+            {t('securityUnlockBtn')}
           </button>
         )}
         {method === 'password' && (
@@ -103,13 +104,13 @@ export default function SensitiveUnlock({ onUnlocked, verifyPasswordApi = true }
               tryUnlock(async () => {
                 if (verifyPasswordApi && isApiEnabled()) {
                   const { valid } = await verifyAccountPassword(password);
-                  if (!valid) throw new Error(MSG.securityPasswordWrong);
+                  if (!valid) throw new Error(t('securityPasswordWrong'));
                 }
                 grantSensitiveUnlock();
               })
             }
           >
-            {MSG.securityUnlockBtn}
+            {t('securityUnlockBtn')}
           </button>
         )}
       </div>

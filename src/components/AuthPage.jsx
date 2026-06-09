@@ -12,12 +12,13 @@ import {
   registerAccount,
   resetPassword,
 } from '../api/client';
-import { MSG } from '../utils/userMessages';
+import { useTranslation } from '../i18n/index.js';
 import { createOfflineSession } from '../utils/authStorage';
 import LegalLinks from './LegalLinks';
 
 export default function AuthPage({ onAuthenticated }) {
   const { toast } = useToast();
+  const { t } = useTranslation();
   const googleBtnRef = useRef(null);
   const [mode, setMode] = useState(() => {
     const params = new URLSearchParams(window.location.search);
@@ -47,7 +48,7 @@ export default function AuthPage({ onAuthenticated }) {
 
   const handleAuthError = useCallback(
     (err) => {
-      toast(err?.message ?? MSG.authFailed, { type: 'error' });
+      toast(err?.message ?? t('authFailed'), { type: 'error' });
     },
     [toast],
   );
@@ -71,7 +72,7 @@ export default function AuthPage({ onAuthenticated }) {
       setSubmitting(true);
       try {
         const session = await loginWithGoogle(credential);
-        completeAuth(session, MSG.authWelcomeBack);
+        completeAuth(session, t('authWelcomeBack'));
       } catch (err) {
         handleAuthError(err);
       } finally {
@@ -153,7 +154,7 @@ export default function AuthPage({ onAuthenticated }) {
 
   const openForgot = () => {
     if (!isApiEnabled()) {
-      toast(MSG.authForgotOffline, { type: 'info', duration: 6000 });
+      toast(t('authForgotOffline'), { type: 'info', duration: 6000 });
       return;
     }
     setMode('forgot');
@@ -163,7 +164,7 @@ export default function AuthPage({ onAuthenticated }) {
 
   const openReset = (token = '') => {
     if (!isApiEnabled()) {
-      toast(MSG.authForgotOffline, { type: 'info', duration: 6000 });
+      toast(t('authForgotOffline'), { type: 'info', duration: 6000 });
       return;
     }
     setMode('reset');
@@ -181,7 +182,7 @@ export default function AuthPage({ onAuthenticated }) {
     if (!devResetToken) return;
     try {
       await navigator.clipboard.writeText(devResetToken);
-      toast(MSG.authForgotCopied, { type: 'success' });
+      toast(t('authForgotCopied'), { type: 'success' });
     } catch {
       toast(devResetToken, { type: 'info', duration: 8000 });
     }
@@ -198,7 +199,7 @@ export default function AuthPage({ onAuthenticated }) {
       const result = await forgotPassword(email.trim());
       setForgotSent(true);
       if (result?.devResetToken) setDevResetToken(result.devResetToken);
-      toast(MSG.authForgotSent, { type: 'info', duration: 6000 });
+      toast(t('authForgotSent'), { type: 'info', duration: 6000 });
     } catch (err) {
       handleAuthError(err);
     } finally {
@@ -209,17 +210,17 @@ export default function AuthPage({ onAuthenticated }) {
   const handleResetSubmit = async (e) => {
     e.preventDefault();
     if (password !== confirmPassword) {
-      toast(MSG.authPasswordMismatch, { type: 'error' });
+      toast(t('authPasswordMismatch'), { type: 'error' });
       return;
     }
     if (password.length < 8) {
-      toast(MSG.authPasswordShort, { type: 'error' });
+      toast(t('authPasswordShort'), { type: 'error' });
       return;
     }
     setSubmitting(true);
     try {
       await resetPassword(resetToken, password);
-      toast(MSG.authResetSuccess, { type: 'success' });
+      toast(t('authResetSuccess'), { type: 'success' });
       setMode('login');
       setPassword('');
       setConfirmPassword('');
@@ -234,11 +235,11 @@ export default function AuthPage({ onAuthenticated }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (mode === 'signup' && !acceptedLegal) {
-      toast(MSG.authLegalRequired, { type: 'error' });
+      toast(t('authLegalRequired'), { type: 'error' });
       return;
     }
     if (mode === 'signup' && password !== confirmPassword) {
-      toast(MSG.authPasswordMismatch, { type: 'error' });
+      toast(t('authPasswordMismatch'), { type: 'error' });
       return;
     }
 
@@ -252,12 +253,12 @@ export default function AuthPage({ onAuthenticated }) {
             : await registerAccount(email, password, displayName);
       } else {
         if (password.length < 8) {
-          toast(MSG.authPasswordShort, { type: 'error' });
+          toast(t('authPasswordShort'), { type: 'error' });
           return;
         }
         session = createOfflineSession(email, displayName || email.split('@')[0]);
       }
-      completeAuth(session, mode === 'login' ? MSG.authWelcomeBack : MSG.authWelcome);
+      completeAuth(session, mode === 'login' ? t('authWelcomeBack') : t('authWelcome'));
     } catch (err) {
       handleAuthError(err);
     } finally {
@@ -270,18 +271,18 @@ export default function AuthPage({ onAuthenticated }) {
     try {
       if (authConfig?.apple === 'mock') {
         const session = await mockOAuthLogin('apple');
-        completeAuth(session, MSG.authWelcomeBack);
+        completeAuth(session, t('authWelcomeBack'));
         return;
       }
       const response = await window.AppleID.auth.signIn();
       const idToken = response?.authorization?.id_token;
-      if (!idToken) throw new Error(MSG.authFailed);
+      if (!idToken) throw new Error(t('authFailed'));
       const appleUser = response.user?.name;
       const name = appleUser
         ? `${appleUser.firstName ?? ''} ${appleUser.lastName ?? ''}`.trim()
         : undefined;
       const session = await loginWithApple(idToken, name);
-      completeAuth(session, MSG.authWelcomeBack);
+      completeAuth(session, t('authWelcomeBack'));
     } catch (err) {
       if (err?.error !== 'popup_closed_by_user') handleAuthError(err);
     } finally {
@@ -301,7 +302,7 @@ export default function AuthPage({ onAuthenticated }) {
           provider === 'google' ? 'Google Demo' : 'Apple Demo',
         );
       }
-      completeAuth(session, MSG.authWelcomeBack);
+      completeAuth(session, t('authWelcomeBack'));
     } catch (err) {
       handleAuthError(err);
     } finally {
@@ -317,19 +318,19 @@ export default function AuthPage({ onAuthenticated }) {
       <div className="auth-page">
         <div className="auth-card glass-panel">
           <div className="auth-brand">
-            <h1 className="auth-title">{MSG.authForgotTitle}</h1>
-            <p className="auth-subtitle">{MSG.authForgotDesc}</p>
+            <h1 className="auth-title">{t('authForgotTitle')}</h1>
+            <p className="auth-subtitle">{t('authForgotDesc')}</p>
           </div>
 
           {forgotSent && (
             <div className="auth-forgot-success" role="status">
-              {MSG.authForgotSent}
+              {t('authForgotSent')}
             </div>
           )}
 
           <form className="auth-form" onSubmit={handleForgotSubmit}>
             <label className="auth-field">
-              <span className="auth-label">{MSG.authEmail}</span>
+              <span className="auth-label">{t('authEmail')}</span>
               <input
                 className="auth-input"
                 type="email"
@@ -342,39 +343,39 @@ export default function AuthPage({ onAuthenticated }) {
             </label>
             {forgotSent && devResetToken && (
               <div className="auth-dev-token">
-                <p>{MSG.authForgotDevToken}</p>
+                <p>{t('authForgotDevToken')}</p>
                 <code>{devResetToken}</code>
                 <div className="auth-forgot-actions">
                   <button type="button" className="btn btn-secondary" onClick={copyDevResetToken}>
-                    {MSG.authForgotCopyCode}
+                    {t('authForgotCopyCode')}
                   </button>
                   <button
                     type="button"
                     className="btn btn-primary"
                     onClick={() => openReset(devResetToken)}
                   >
-                    {MSG.authForgotUseCode}
+                    {t('authForgotUseCode')}
                   </button>
                 </div>
               </div>
             )}
             <button type="submit" className="btn btn-secure auth-submit" disabled={submitting}>
               {submitting
-                ? MSG.authPleaseWait
+                ? t('authPleaseWait')
                 : forgotSent
-                  ? MSG.authForgotResend
-                  : MSG.authForgotSubmit}
+                  ? t('authForgotResend')
+                  : t('authForgotSubmit')}
             </button>
           </form>
 
           <div className="auth-forgot-actions">
             {forgotSent && !devResetToken && (
               <button type="button" className="auth-link-btn" onClick={() => openReset()}>
-                {MSG.authForgotUseCode}
+                {t('authForgotUseCode')}
               </button>
             )}
             <button type="button" className="auth-link-btn" onClick={() => setMode('login')}>
-              {MSG.authBackToLogin}
+              {t('authBackToLogin')}
             </button>
           </div>
         </div>
@@ -387,12 +388,12 @@ export default function AuthPage({ onAuthenticated }) {
       <div className="auth-page">
         <div className="auth-card glass-panel">
           <div className="auth-brand">
-            <h1 className="auth-title">{MSG.authResetTitle}</h1>
-            <p className="auth-subtitle">{MSG.authResetDesc}</p>
+            <h1 className="auth-title">{t('authResetTitle')}</h1>
+            <p className="auth-subtitle">{t('authResetDesc')}</p>
           </div>
           <form className="auth-form" onSubmit={handleResetSubmit}>
             <label className="auth-field">
-              <span className="auth-label">{MSG.authResetToken}</span>
+              <span className="auth-label">{t('authResetToken')}</span>
               <input
                 className="auth-input"
                 value={resetToken}
@@ -404,7 +405,7 @@ export default function AuthPage({ onAuthenticated }) {
               />
             </label>
             <label className="auth-field">
-              <span className="auth-label">{MSG.authPassword}</span>
+              <span className="auth-label">{t('authPassword')}</span>
               <input
                 className="auth-input"
                 type="password"
@@ -415,7 +416,7 @@ export default function AuthPage({ onAuthenticated }) {
               />
             </label>
             <label className="auth-field">
-              <span className="auth-label">{MSG.authConfirmPassword}</span>
+              <span className="auth-label">{t('authConfirmPassword')}</span>
               <input
                 className="auth-input"
                 type="password"
@@ -426,11 +427,11 @@ export default function AuthPage({ onAuthenticated }) {
               />
             </label>
             <button type="submit" className="btn btn-secure auth-submit" disabled={submitting}>
-              {submitting ? MSG.authPleaseWait : MSG.authResetSubmit}
+              {submitting ? t('authPleaseWait') : t('authResetSubmit')}
             </button>
           </form>
           <button type="button" className="auth-link-btn" onClick={() => setMode('login')}>
-            {MSG.authBackToLogin}
+            {t('authBackToLogin')}
           </button>
         </div>
       </div>
@@ -446,7 +447,7 @@ export default function AuthPage({ onAuthenticated }) {
           </div>
           <h1 className="auth-title">Aether</h1>
           <p className="auth-subtitle">
-            {mode === 'login' ? MSG.authLoginSubtitle : MSG.authSignupSubtitle}
+            {mode === 'login' ? t('authLoginSubtitle') : t('authSignupSubtitle')}
           </p>
         </div>
 
@@ -459,7 +460,7 @@ export default function AuthPage({ onAuthenticated }) {
             onClick={() => setMode('login')}
           >
             <LogIn className="icon-sm" />
-            {MSG.authLoginTab}
+            {t('authLoginTab')}
           </button>
           <button
             type="button"
@@ -472,7 +473,7 @@ export default function AuthPage({ onAuthenticated }) {
             }}
           >
             <UserPlus className="icon-sm" />
-            {MSG.authSignupTab}
+            {t('authSignupTab')}
           </button>
         </div>
 
@@ -483,7 +484,7 @@ export default function AuthPage({ onAuthenticated }) {
         <form className="auth-form" onSubmit={handleSubmit}>
           {mode === 'signup' && (
             <label className="auth-field">
-              <span className="auth-label">{MSG.authDisplayName}</span>
+              <span className="auth-label">{t('authDisplayName')}</span>
               <input
                 className="auth-input"
                 type="text"
@@ -496,7 +497,7 @@ export default function AuthPage({ onAuthenticated }) {
           )}
 
           <label className="auth-field">
-            <span className="auth-label">{MSG.authEmail}</span>
+            <span className="auth-label">{t('authEmail')}</span>
             <input
               className="auth-input"
               type="email"
@@ -510,17 +511,17 @@ export default function AuthPage({ onAuthenticated }) {
           <label className="auth-field">
             {mode === 'login' ? (
               <div className="auth-password-header">
-                <span className="auth-label">{MSG.authPassword}</span>
+                <span className="auth-label">{t('authPassword')}</span>
                 <button
                   type="button"
                   className="auth-link-btn auth-forgot-link"
                   onClick={openForgot}
                 >
-                  {MSG.authForgotPassword}
+                  {t('authForgotPassword')}
                 </button>
               </div>
             ) : (
-              <span className="auth-label">{MSG.authPassword}</span>
+              <span className="auth-label">{t('authPassword')}</span>
             )}
             <input
               className="auth-input"
@@ -535,7 +536,7 @@ export default function AuthPage({ onAuthenticated }) {
 
           {mode === 'signup' && (
             <label className="auth-field">
-              <span className="auth-label">{MSG.authConfirmPassword}</span>
+              <span className="auth-label">{t('authConfirmPassword')}</span>
               <input
                 className="auth-input"
                 type="password"
@@ -557,7 +558,7 @@ export default function AuthPage({ onAuthenticated }) {
                   onChange={(e) => setAcceptedLegal(e.target.checked)}
                   disabled={submitting}
                 />
-                <span>{MSG.authLegalConsentPrefix}</span>
+                <span>{t('authLegalConsentPrefix')}</span>
               </label>
               <LegalLinks className="legal-links legal-links--inline" />
             </div>
@@ -566,24 +567,24 @@ export default function AuthPage({ onAuthenticated }) {
           {mode === 'login' && (
             <div className="auth-login-recovery">
               <button type="button" className="auth-link-btn" onClick={() => openReset()}>
-                {MSG.authHaveResetCode}
+                {t('authHaveResetCode')}
               </button>
             </div>
           )}
 
           <button type="submit" className="btn btn-secure auth-submit" disabled={submitting}>
             {submitting
-              ? MSG.authPleaseWait
+              ? t('authPleaseWait')
               : mode === 'login'
-                ? MSG.authLoginButton
-                : MSG.authSignupButton}
+                ? t('authLoginButton')
+                : t('authSignupButton')}
           </button>
         </form>
 
         {(showGoogle || showApple) && (
           <div className="auth-oauth">
-            <p className="auth-oauth-legal">{MSG.authOAuthLegal}</p>
-            <p className="auth-oauth-label">{MSG.authOrContinue}</p>
+            <p className="auth-oauth-legal">{t('authOAuthLegal')}</p>
+            <p className="auth-oauth-label">{t('authOrContinue')}</p>
             <div className="auth-oauth-row">
               {showGoogle && (
                 <>
@@ -597,7 +598,7 @@ export default function AuthPage({ onAuthenticated }) {
                       disabled={submitting}
                       onClick={() => handleMockOAuth('google')}
                     >
-                      {MSG.authGoogleDemo}
+                      {t('authGoogleDemo')}
                     </button>
                   )}
                 </>
@@ -609,7 +610,7 @@ export default function AuthPage({ onAuthenticated }) {
                   disabled={submitting}
                   onClick={handleAppleSignIn}
                 >
-                  {authConfig?.apple === 'mock' ? MSG.authAppleDemo : MSG.authApple}
+                  {authConfig?.apple === 'mock' ? t('authAppleDemo') : t('authApple')}
                 </button>
               )}
             </div>
@@ -617,10 +618,10 @@ export default function AuthPage({ onAuthenticated }) {
         )}
 
         {isApiEnabled() && (
-          <p className="auth-admin-hint">{MSG.authAdminHint}</p>
+          <p className="auth-admin-hint">{t('authAdminHint')}</p>
         )}
 
-        {!isApiEnabled() && <p className="auth-offline-note">{MSG.authOfflineNote}</p>}
+        {!isApiEnabled() && <p className="auth-offline-note">{t('authOfflineNote')}</p>}
 
         <LegalLinks className="auth-legal-links" />
       </div>

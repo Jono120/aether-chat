@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Shield, Eye, EyeOff, Flame, Menu, X, LogOut } from 'lucide-react';
-import { MSG } from '../utils/userMessages';
+import { useTranslation } from '../i18n/index.js';
 import useFocusTrap from '../hooks/useFocusTrap';
 
 /**
@@ -25,15 +25,16 @@ export default function Navigation({
   userLabel,
   sessionIsAdmin = false,
 }) {
+  const { t } = useTranslation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [showPanicConfirm, setShowPanicConfirm] = useState(false);
   const panicModalRef = useFocusTrap(showPanicConfirm);
 
   const tabs = [
-    { id: 'grid', label: 'Discovery Grid' },
-    { id: 'chat', label: 'Messages' },
-    { id: 'profile', label: 'Profile' },
-    { id: 'privacy', label: 'Settings' },
+    { id: 'grid', label: t('navTabGrid') },
+    { id: 'chat', label: t('navTabChat') },
+    { id: 'profile', label: t('navTabProfile') },
+    { id: 'privacy', label: t('navTabSettings') },
   ];
 
   useEffect(() => {
@@ -83,7 +84,7 @@ export default function Navigation({
                 {userLabel}
                 {sessionIsAdmin && (
                   <span className="metadata-badge badge-warning badge-sm header-admin-badge">
-                    {MSG.authAdminBadge}
+                    {t('authAdminBadge')}
                   </span>
                 )}
               </span>
@@ -92,14 +93,14 @@ export default function Navigation({
             <div className="status-badge-container">
               <span className={`status-indicator ${stealthMode ? 'status-offline' : 'status-online'}`} />
               <span className="status-badge-text">
-                {stealthMode ? 'Offline' : 'Online'}
+                {stealthMode ? t('navStatusOffline') : t('navStatusOnline')}
               </span>
             </div>
 
             {/* Stealth Mode Button */}
             <button
               onClick={() => setStealthMode(!stealthMode)}
-              title={stealthMode ? 'Offline Mode' : 'Online Mode'}
+              title={stealthMode ? t('navStealthTitleOffline') : t('navStealthTitleOnline')}
               className={`icon-btn-ctrl ${
                 stealthMode ? 'icon-btn-ctrl-active' : 'icon-btn-ctrl-online'
               }`}
@@ -110,7 +111,7 @@ export default function Navigation({
             {/* Panic Mode Button */}
             <button
               onClick={() => setShowPanicConfirm(true)}
-              title="Panic Mode: Account Deletion"
+              title={t('navPanicTitle')}
               className="icon-btn-ctrl panic-trigger-btn"
             >
               <Flame className="icon-md" />
@@ -120,7 +121,7 @@ export default function Navigation({
               <button
                 type="button"
                 onClick={onLogout}
-                title={MSG.authLogout}
+                title={t('authLogout')}
                 className="icon-btn-ctrl"
               >
                 <LogOut className="icon-md" />
@@ -153,9 +154,9 @@ export default function Navigation({
               </button>
             ))}
             <div className="mobile-drawer-status">
-              <span className="status-badge-text">Grid Presence:</span>
+              <span className="status-badge-text">{t('navGridPresence')}</span>
               <span className={`metadata-badge ${stealthMode ? 'badge-warning' : 'badge-success'}`}>
-                {stealthMode ? MSG.navHidden : MSG.navVisibleNearby}
+                {stealthMode ? t('navHidden') : t('navVisibleNearby')}
               </span>
             </div>
           </div>
@@ -179,12 +180,11 @@ export default function Navigation({
               </div>
 
               <h3 id="panic-modal-title" className="modal-title modal-title--spaced">
-                Confirm Panic Mode?
+                {t('navPanicConfirmTitle')}
               </h3>
 
               <p className="modal-subtitle modal-subtitle--body">
-                This will instantly clear all local app information from this device.
-                Your account will also be marked for permanent deletion.
+                {t('navPanicConfirmBody')}
               </p>
 
               <div className="modal-actions modal-actions--stacked">
@@ -192,13 +192,13 @@ export default function Navigation({
                   onClick={executePanic}
                   className="btn btn-danger modal-btn"
                 >
-                  Confirm Panic Mode
+                  {t('navPanicConfirmBtn')}
                 </button>
                 <button
                   onClick={() => setShowPanicConfirm(false)}
                   className="btn btn-secondary modal-btn"
                 >
-                  Cancel
+                  {t('cancel')}
                 </button>
               </div>
             </div>

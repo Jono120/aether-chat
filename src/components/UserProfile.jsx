@@ -7,7 +7,7 @@ import {
   requestUploadSas,
   updateMyProfile,
 } from '../api/client';
-import { MSG } from '../utils/userMessages';
+import { useTranslation } from '../i18n/index.js';
 import { isWebBrowser } from '../utils/platform';
 import WebAlbumBlockedBanner from './WebAlbumBlockedBanner';
 import ProfileChipSelect from './ProfileChipSelect';
@@ -15,7 +15,7 @@ import {
   AGE_OPTIONS,
   GENDER_OPTIONS,
   LOOKING_FOR_OPTIONS,
-  PRESET_INTERESTS,
+  presetInterestOptions,
 } from '../utils/profileOptions';
 import {
   DEFAULT_LOCAL_PROFILE,
@@ -28,6 +28,7 @@ import {
   saveMediaPreview,
   clearMediaPreview,
 } from '../utils/profileStorage';
+import { SOCIAL_PLATFORM_META } from '../utils/socialLinks';
 import { GenerativeAvatar } from '../utils/avatarArt';
 
 function fileToDataUrl(file) {
@@ -41,6 +42,7 @@ function fileToDataUrl(file) {
 
 export default function UserProfile({ onProfileSaved, setStealthMode }) {
   const { toast } = useToast();
+  const { t } = useTranslation();
   const webBlocked = isWebBrowser();
   const fileInputRef = useRef(null);
   const [loading, setLoading] = useState(true);
@@ -51,6 +53,13 @@ export default function UserProfile({ onProfileSaved, setStealthMode }) {
   const [pattern, setPattern] = useState(1);
 
   const patchForm = (updates) => setForm((prev) => ({ ...prev, ...updates }));
+
+  const patchSocialLink = (platform, value) => {
+    setForm((prev) => ({
+      ...prev,
+      socialLinks: { ...prev.socialLinks, [platform]: value },
+    }));
+  };
 
   const loadProfile = async () => {
     setLoading(true);
@@ -99,9 +108,9 @@ export default function UserProfile({ onProfileSaved, setStealthMode }) {
 
       if (setStealthMode) setStealthMode(!saved.discoverable);
       onProfileSaved?.(saved);
-      toast(MSG.profileSaved, { type: 'success' });
+      toast(t('profileSaved'), { type: 'success' });
     } catch (err) {
-      toast(err?.message ?? MSG.profileSaveFailed, { type: 'error' });
+      toast(err?.message ?? t('profileSaveFailed'), { type: 'error' });
     } finally {
       setSaving(false);
     }
@@ -109,7 +118,7 @@ export default function UserProfile({ onProfileSaved, setStealthMode }) {
 
   const handleAvatarPick = () => {
     if (!form.allowProfileMediaUpload) {
-      toast(MSG.profilePhotoDisabled, { type: 'info' });
+      toast(t('profilePhotoDisabled'), { type: 'info' });
       return;
     }
     fileInputRef.current?.click();
@@ -147,7 +156,7 @@ export default function UserProfile({ onProfileSaved, setStealthMode }) {
       patchForm({ avatarMediaId: mediaId });
     } catch (err) {
       console.warn('Avatar upload failed', err);
-      toast(MSG.profileSaveFailed, { type: 'error' });
+      toast(t('profileSaveFailed'), { type: 'error' });
     } finally {
       setUploading(false);
     }
@@ -160,23 +169,23 @@ export default function UserProfile({ onProfileSaved, setStealthMode }) {
   };
 
   if (loading) {
-    return <div className="page-stack profile-page">{MSG.profileLoading}</div>;
+    return <div className="page-stack profile-page">{t('profileLoading')}</div>;
   }
 
   return (
     <div className="page-stack profile-page">
       <header className="profile-page-header">
-        <h2 className="grid-section-title">{MSG.profilePageTitle}</h2>
-        <p className="grid-section-desc">{MSG.profilePageDesc}</p>
+        <h2 className="grid-section-title">{t('profilePageTitle')}</h2>
+        <p className="grid-section-desc">{t('profilePageDesc')}</p>
       </header>
 
       <form onSubmit={handleSave} className="profile-form">
         <section className="privacy-card profile-card profile-card--photo">
           <div className="privacy-card-header profile-card-header--tight">
             <Image className="icon-md text-cyan" />
-            <h3 className="privacy-card-title">{MSG.profilePhotoTitle}</h3>
+            <h3 className="privacy-card-title">{t('profilePhotoTitle')}</h3>
           </div>
-          <p className="profile-card-intro">{MSG.profilePhotoDesc}</p>
+          <p className="profile-card-intro">{t('profilePhotoDesc')}</p>
 
           <div className="profile-avatar-row">
             <div className="profile-avatar-preview">
@@ -207,10 +216,10 @@ export default function UserProfile({ onProfileSaved, setStealthMode }) {
                 disabled={!form.allowProfileMediaUpload || uploading}
               >
                 {uploading
-                  ? MSG.profilePhotoUploading
+                  ? t('profilePhotoUploading')
                   : avatarPreview
-                    ? MSG.profilePhotoChange
-                    : MSG.profilePhotoUpload}
+                    ? t('profilePhotoChange')
+                    : t('profilePhotoUpload')}
               </button>
               {avatarPreview && (
                 <button
@@ -219,7 +228,7 @@ export default function UserProfile({ onProfileSaved, setStealthMode }) {
                   onClick={handleRemoveAvatar}
                   disabled={uploading}
                 >
-                  {MSG.profilePhotoRemove}
+                  {t('profilePhotoRemove')}
                 </button>
               )}
             </div>
@@ -229,11 +238,11 @@ export default function UserProfile({ onProfileSaved, setStealthMode }) {
         <section className="privacy-card profile-card profile-card--appearance">
           <div className="privacy-card-header profile-card-header--tight">
             <Palette className="icon-md text-emerald" />
-            <h3 className="privacy-card-title">{MSG.profileSectionAppearance}</h3>
+            <h3 className="privacy-card-title">{t('profileSectionAppearance')}</h3>
           </div>
           <div className="profile-color-row">
             <label className="profile-color-field">
-              <span>{MSG.profilePrimaryColor}</span>
+              <span>{t('profilePrimaryColor')}</span>
               <input
                 type="color"
                 value={form.primaryColor}
@@ -241,7 +250,7 @@ export default function UserProfile({ onProfileSaved, setStealthMode }) {
               />
             </label>
             <label className="profile-color-field">
-              <span>{MSG.profileSecondaryColor}</span>
+              <span>{t('profileSecondaryColor')}</span>
               <input
                 type="color"
                 value={form.secondaryColor}
@@ -254,12 +263,12 @@ export default function UserProfile({ onProfileSaved, setStealthMode }) {
         <section className="privacy-card profile-card profile-card--full">
           <div className="privacy-card-header profile-card-header--tight">
             <User className="icon-md text-violet" />
-            <h3 className="privacy-card-title">{MSG.profileSectionAbout}</h3>
+            <h3 className="privacy-card-title">{t('profileSectionAbout')}</h3>
           </div>
 
           <div className="profile-fields profile-fields--grid">
             <label className="profile-field">
-              <span className="profile-field-label">{MSG.profileDisplayName}</span>
+              <span className="profile-field-label">{t('profileDisplayName')}</span>
               <input
                 className="profile-input"
                 value={form.username}
@@ -270,30 +279,30 @@ export default function UserProfile({ onProfileSaved, setStealthMode }) {
             </label>
 
             <label className="profile-field">
-              <span className="profile-field-label">{MSG.profileGender}</span>
+              <span className="profile-field-label">{t('profileGender')}</span>
               <select
                 className="profile-input profile-select"
                 value={form.gender}
                 onChange={(e) => patchForm({ gender: e.target.value })}
               >
-                <option value="">{MSG.profileGenderUnset}</option>
+                <option value="">{t('profileGenderUnset')}</option>
                 {GENDER_OPTIONS.map((option) => (
                   <option key={option.value} value={option.value}>
-                    {option.label}
+                    {t(option.labelKey)}
                   </option>
                 ))}
               </select>
             </label>
 
             <label className="profile-field">
-              <span className="profile-field-label">{MSG.profileAge}</span>
-              <span className="profile-field-hint">{MSG.profileAgeHint}</span>
+              <span className="profile-field-label">{t('profileAge')}</span>
+              <span className="profile-field-hint">{t('profileAgeHint')}</span>
               <select
                 className="profile-input profile-select"
                 value={form.age}
                 onChange={(e) => patchForm({ age: e.target.value })}
               >
-                <option value="">{MSG.profileAgeUnset}</option>
+                <option value="">{t('profileAgeUnset')}</option>
                 {AGE_OPTIONS.map((age) => (
                   <option key={age} value={age}>
                     {age}
@@ -303,19 +312,19 @@ export default function UserProfile({ onProfileSaved, setStealthMode }) {
             </label>
 
             <label className="profile-field profile-field--full">
-              <span className="profile-field-label">{MSG.profileLookingFor}</span>
-              <span className="profile-field-hint">{MSG.profileLookingForHint}</span>
+              <span className="profile-field-label">{t('profileLookingFor')}</span>
+              <span className="profile-field-hint">{t('profileLookingForHint')}</span>
               <ProfileChipSelect
                 options={LOOKING_FOR_OPTIONS}
                 value={form.lookingFor}
                 onChange={(lookingFor) => patchForm({ lookingFor })}
-                ariaLabel={MSG.profileLookingFor}
+                ariaLabel={t('profileLookingFor')}
               />
             </label>
 
             <label className="profile-field">
-              <span className="profile-field-label">{MSG.profileHeadline}</span>
-              <span className="profile-field-hint">{MSG.profileHeadlineHint}</span>
+              <span className="profile-field-label">{t('profileHeadline')}</span>
+              <span className="profile-field-hint">{t('profileHeadlineHint')}</span>
               <input
                 className="profile-input"
                 value={form.role}
@@ -325,7 +334,7 @@ export default function UserProfile({ onProfileSaved, setStealthMode }) {
             </label>
 
             <label className="profile-field profile-field--full">
-              <span className="profile-field-label">{MSG.profileBio}</span>
+              <span className="profile-field-label">{t('profileBio')}</span>
               <textarea
                 className="profile-input profile-textarea"
                 value={form.bio}
@@ -336,26 +345,47 @@ export default function UserProfile({ onProfileSaved, setStealthMode }) {
             </label>
 
             <div className="profile-field profile-field--full">
-              <span className="profile-field-label">{MSG.profileTags}</span>
-              <span className="profile-field-hint">{MSG.profileTagsHint}</span>
+              <span className="profile-field-label">{t('profileSocialTitle')}</span>
+              <span className="profile-field-hint">{t('profileSocialHint')}</span>
+              <div className="profile-social-fields">
+                {SOCIAL_PLATFORM_META.map(({ id, label, placeholder }) => (
+                  <label key={id} className="profile-social-field">
+                    <span className="profile-social-field-label">{label}</span>
+                    <input
+                      className="profile-input"
+                      value={form.socialLinks?.[id] ?? ''}
+                      onChange={(e) => patchSocialLink(id, e.target.value)}
+                      placeholder={placeholder}
+                      maxLength={100}
+                      autoComplete="off"
+                      spellCheck={false}
+                    />
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            <div className="profile-field profile-field--full">
+              <span className="profile-field-label">{t('profileTags')}</span>
+              <span className="profile-field-hint">{t('profileTagsHint')}</span>
               <ProfileChipSelect
-                options={PRESET_INTERESTS}
+                options={presetInterestOptions()}
                 value={form.interestsSelected}
                 onChange={(interestsSelected) => patchForm({ interestsSelected })}
-                ariaLabel={MSG.profileTags}
+                ariaLabel={t('profileTags')}
               />
               <input
                 className="profile-input profile-input--spaced"
                 value={form.interestsCustom}
                 onChange={(e) => patchForm({ interestsCustom: e.target.value })}
-                placeholder={MSG.profileTagsCustomPlaceholder}
+                placeholder={t('profileTagsCustomPlaceholder')}
               />
             </div>
 
             <div className="settings-row settings-row--compact profile-field--full">
               <div>
-                <h4 className="settings-row-label">{MSG.profileShowOnGrid}</h4>
-                <p className="settings-row-desc">{MSG.profileShowOnGridDesc}</p>
+                <h4 className="settings-row-label">{t('profileShowOnGrid')}</h4>
+                <p className="settings-row-desc">{t('profileShowOnGridDesc')}</p>
               </div>
               <label className="form-toggle">
                 <input
@@ -372,14 +402,14 @@ export default function UserProfile({ onProfileSaved, setStealthMode }) {
         <section className="privacy-card profile-card profile-card--media">
           <div className="privacy-card-header profile-card-header--tight">
             <Image className="icon-md text-rose" />
-            <h3 className="privacy-card-title">{MSG.profileSectionMedia}</h3>
+            <h3 className="privacy-card-title">{t('profileSectionMedia')}</h3>
           </div>
 
           <div className="profile-media-toggles">
             <div className="settings-row settings-row--compact">
               <div>
-                <h4 className="settings-row-label">{MSG.profileAllowPhotoUploads}</h4>
-                <p className="settings-row-desc">{MSG.profileAllowPhotoUploadsDesc}</p>
+                <h4 className="settings-row-label">{t('profileAllowPhotoUploads')}</h4>
+                <p className="settings-row-desc">{t('profileAllowPhotoUploadsDesc')}</p>
               </div>
               <label className="form-toggle">
                 <input
@@ -393,9 +423,9 @@ export default function UserProfile({ onProfileSaved, setStealthMode }) {
 
             <div className="settings-row settings-row--flush">
               <div>
-                <h4 className="settings-row-label">{MSG.profileAllowAlbum}</h4>
+                <h4 className="settings-row-label">{t('profileAllowAlbum')}</h4>
                 <p className="settings-row-desc">
-                  {webBlocked ? MSG.webAlbumBlockedInline : MSG.profileAllowAlbumDesc}
+                  {webBlocked ? t('webAlbumBlockedInline') : t('profileAllowAlbumDesc')}
                 </p>
               </div>
               <label className="form-toggle">
@@ -411,9 +441,9 @@ export default function UserProfile({ onProfileSaved, setStealthMode }) {
 
             <div className="settings-row settings-row--flush">
               <div>
-                <h4 className="settings-row-label">{MSG.profileAllowAlbumMedia}</h4>
+                <h4 className="settings-row-label">{t('profileAllowAlbumMedia')}</h4>
                 <p className="settings-row-desc">
-                  {webBlocked ? MSG.webAlbumBlockedInline : MSG.profileAllowAlbumMediaDesc}
+                  {webBlocked ? t('webAlbumBlockedInline') : t('profileAllowAlbumMediaDesc')}
                 </p>
               </div>
               <label className="form-toggle">
@@ -438,7 +468,7 @@ export default function UserProfile({ onProfileSaved, setStealthMode }) {
 
         <button type="submit" className="btn btn-secure profile-save-btn" disabled={saving}>
           <Save className="icon-sm" />
-          {saving ? MSG.profileSaving : MSG.profileSave}
+          {saving ? t('profileSaving') : t('profileSave')}
         </button>
       </form>
     </div>

@@ -1,10 +1,13 @@
 import React, { useEffect } from 'react';
 import { Lock, X } from 'lucide-react';
 import useFocusTrap from '../hooks/useFocusTrap';
-import { MSG } from '../utils/userMessages';
+import { useTranslation } from '../i18n/index.js';
 
 export default function EncryptionTipsModal({ open, onClose }) {
+  const { t } = useTranslation();
   const modalRef = useFocusTrap(open);
+  const encryptionBulletsRaw = t('settingsMsgEncryptionModalBullets', { returnObjects: true });
+  const encryptionBullets = Array.isArray(encryptionBulletsRaw) ? encryptionBulletsRaw : [];
 
   useEffect(() => {
     if (!open) return undefined;
@@ -31,30 +34,30 @@ export default function EncryptionTipsModal({ open, onClose }) {
           <div className="encryption-tips-modal-title-row">
             <Lock className="icon-md text-cyan" />
             <h3 id="encryption-tips-title" className="modal-title">
-              {MSG.settingsMsgEncryptionModalTitle}
+              {t('settingsMsgEncryptionModalTitle')}
             </h3>
           </div>
           <button
             type="button"
             className="modal-close-btn"
             onClick={onClose}
-            aria-label={MSG.close}
+            aria-label={t('close')}
           >
             <X className="icon-md" />
           </button>
         </div>
         <div className="modal-body encryption-tips-modal-body">
-          <p className="encryption-tips-lead">{MSG.settingsMsgEncryptionBody}</p>
+          <p className="encryption-tips-lead">{t('settingsMsgEncryptionBody')}</p>
           <ul className="encryption-tips-list">
-            {MSG.settingsMsgEncryptionModalBullets.map((line) => (
+            {encryptionBullets.map((line) => (
               <li key={line}>{line}</li>
             ))}
           </ul>
-          <p className="encryption-tips-footnote">{MSG.settingsMsgEncryptionModalFootnote}</p>
+          <p className="encryption-tips-footnote">{t('settingsMsgEncryptionModalFootnote')}</p>
         </div>
         <div className="modal-actions encryption-tips-modal-actions">
           <button type="button" className="btn btn-primary modal-btn" onClick={onClose}>
-            {MSG.close}
+            {t('close')}
           </button>
         </div>
       </div>

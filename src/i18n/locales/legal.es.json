@@ -1,0 +1,207 @@
+{
+  "lastUpdated": "2026-06-03",
+  "disclaimer": "Este texto describe cómo funciona Aether hoy. No constituye asesoramiento legal. Un abogado cualificado debe revisarlo antes de un lanzamiento público completo.",
+  "termsSections": [
+    {
+      "id": "acceptance",
+      "title": "1. Acuerdo",
+      "paragraphs": [
+        "Al crear una cuenta, iniciar sesión o usar Aether, aceptas estos Términos de Servicio y nuestra Política de Privacidad.",
+        "Si no estás de acuerdo, no uses el servicio."
+      ]
+    },
+    {
+      "id": "eligibility",
+      "title": "2. Quién puede usar Aether",
+      "paragraphs": [
+        "Aether es un servicio de descubrimiento social y citas destinado solo a adultos de 18 años o más.",
+        "Debes confirmar tu edad antes del primer uso. Podemos suspender cuentas que parezcan pertenecer a menores."
+      ]
+    },
+    {
+      "id": "account",
+      "title": "3. Tu cuenta",
+      "paragraphs": [
+        "Eres responsable de mantener confidenciales tus credenciales de acceso y de la actividad en tu cuenta.",
+        "La información de perfil que decidas publicar (nombre visible, biografía, fotos) es visible para otras personas según tu configuración de descubrimiento y privacidad.",
+        "Puedes programar la eliminación de la cuenta desde Configuración; la eliminación se completa tras cualquier periodo de gracia indicado."
+      ]
+    },
+    {
+      "id": "conduct",
+      "title": "4. Uso aceptable",
+      "paragraphs": [
+        "No debes acosar, amenazar, perseguir, suplantar, enviar spam ni publicar contenido ilegal.",
+        "No debes intentar acceder a las claves privadas de otras personas, descifrar mensajes sin autorización ni sondear nuestros sistemas.",
+        "Podemos eliminar contenido, restringir funciones o suspender cuentas que incumplan estas normas o la ley aplicable."
+      ]
+    },
+    {
+      "id": "e2ee",
+      "title": "5. Cifrado y tus dispositivos",
+      "paragraphs": [
+        "La mensajería privada utiliza cifrado de extremo a extremo. El texto de los mensajes se cifra en tu dispositivo antes de enviarse.",
+        "Las claves privadas permanecen en tu dispositivo (almacenamiento del navegador). Si pierdes acceso a tu dispositivo o borras los datos del navegador sin copia de seguridad, no podemos recuperar tus claves ni leer tus mensajes antiguos.",
+        "Eres responsable de verificar los contactos (por ejemplo, compartiendo códigos/huellas) antes de confiar en una conversación."
+      ]
+    },
+    {
+      "id": "location",
+      "title": "6. Ubicación y descubrimiento",
+      "paragraphs": [
+        "Aether no almacena coordenadas GPS precisas en nuestros servidores para descubrimiento.",
+        "Las distancias que se muestran a otras personas son intencionalmente aproximadas (bandas difuminadas o etiquetas de cuadrícula) para reducir el riesgo de privacidad de ubicación."
+      ]
+    },
+    {
+      "id": "safety",
+      "title": "7. Herramientas de seguridad",
+      "paragraphs": [
+        "Puedes bloquear usuarios, reportar usuarios para revisión de moderación y usar funciones de pánico/sigilo para ocultar tu perfil y revocar claves.",
+        "Los reportes y bloqueos se procesan según nuestras prácticas de moderación; no garantizamos resultados ni tiempos de respuesta."
+      ]
+    },
+    {
+      "id": "termination",
+      "title": "8. Finalización del servicio",
+      "paragraphs": [
+        "Puedes dejar de usar Aether en cualquier momento y eliminar tu cuenta desde Configuración.",
+        "Podemos suspender o cancelar el acceso por incumplimiento de estos términos, requisitos legales o motivos operativos, con aviso cuando sea posible."
+      ]
+    },
+    {
+      "id": "disclaimer",
+      "title": "9. Exenciones de responsabilidad",
+      "paragraphs": [
+        "Aether se proporciona “tal cual” durante el periodo beta, sin garantías de servicio ininterrumpido, idoneidad para un propósito particular o funcionamiento libre de errores.",
+        "En la medida permitida por la ley, no somos responsables de daños indirectos o consecuentes derivados del uso del servicio."
+      ]
+    },
+    {
+      "id": "changes",
+      "title": "10. Cambios",
+      "paragraphs": [
+        "Podemos actualizar estos términos. La fecha de “Última actualización” en la parte superior de esta página cambiará cuando lo hagamos.",
+        "El uso continuado después de que los cambios entren en vigor constituye la aceptación de los términos revisados."
+      ]
+    },
+    {
+      "id": "contact",
+      "title": "11. Contacto",
+      "paragraphs": [
+        "Preguntas sobre estos términos: usa Configuración → Diagnóstico → Reportar un problema, o contacta con el operador de tu plataforma mediante el canal de soporte indicado al registrarte."
+      ]
+    }
+  ],
+  "privacySections": [
+    {
+      "id": "intro",
+      "title": "1. Resumen",
+      "paragraphs": [
+        "Esta Política de Privacidad explica qué datos personales procesa Aether, por qué y qué opciones tienes.",
+        "Aether está diseñado para que no podamos leer el contenido de mensajes privados sin las claves de tu dispositivo."
+      ]
+    },
+    {
+      "id": "collect",
+      "title": "2. Datos que procesamos",
+      "paragraphs": [
+        "Datos de cuenta: correo electrónico (para iniciar sesión), nombre visible e identificadores de autenticación gestionados por nuestra API.",
+        "Datos de perfil: biografía, etiquetas, avatar, configuración de descubrimiento y etiquetas de distancia difuminada — no GPS bruto en el servidor.",
+        "Metadatos de mensajería: miembros de conversaciones, sobres cifrados, marcas de tiempo y señales opcionales de lectura si las activas.",
+        "Criptografía: claves públicas registradas para tus dispositivos; las claves privadas permanecen solo en tu dispositivo.",
+        "Registros de seguridad: listas de bloqueo y reportes de usuarios que envías.",
+        "Contenido multimedia: archivos de álbum que subes (metadatos en nuestra base de datos; bytes en almacenamiento blob cifrado cuando está configurado)."
+      ]
+    },
+    {
+      "id": "not-collect",
+      "title": "3. Lo que no hacemos",
+      "paragraphs": [
+        "No almacenamos texto plano de mensajes en nuestros servidores.",
+        "No vendemos tus datos personales.",
+        "Los registros operativos de la aplicación enviados a nuestro proveedor de alojamiento se sanean para evitar identificadores personales (ver sección 7)."
+      ]
+    },
+    {
+      "id": "messages",
+      "title": "4. Mensajes cifrados de extremo a extremo",
+      "paragraphs": [
+        "Los mensajes se cifran en tu dispositivo antes de subirse. Solo procesamos texto cifrado y metadatos de enrutamiento.",
+        "Si activas funciones de mensajes que desaparecen o TTL de medios, el contenido se elimina según esa configuración y los trabajos de limpieza del servidor."
+      ]
+    },
+    {
+      "id": "location",
+      "title": "5. Ubicación",
+      "paragraphs": [
+        "El descubrimiento usa bandas de distancia aproximadas o etiquetas de cuadrícula — no coordenadas exactas almacenadas en PostgreSQL.",
+        "Controlas la visibilidad (incluido sigilo/pánico) desde Configuración."
+      ]
+    },
+    {
+      "id": "diagnostics",
+      "title": "6. Reportes de errores (tu elección)",
+      "paragraphs": [
+        "Reportes manuales: eliges qué escribir en Configuración → Diagnóstico. El contexto opcional del dispositivo usa un conjunto de campos permitidos (navegador, ruta, tema) — no contenido de chat.",
+        "Reportes automáticos de fallos: desactivados por defecto. Si activas “Enviar informes de fallos automáticamente”, podemos recibir un nombre de error y un fragmento de pila truncado cuando hayas iniciado sesión. Puedes desactivarlo en cualquier momento.",
+        "El contenido de reportes puede ser revisado por operadores para corregir errores. No se usa para perfiles publicitarios."
+      ]
+    },
+    {
+      "id": "logs",
+      "title": "7. Registros operativos",
+      "paragraphs": [
+        "Nuestra API escribe registros estructurados para seguridad y fiabilidad (por ejemplo, ID de solicitud, método HTTP, ruta saneada, código de estado).",
+        "Estos registros están diseñados para no incluir correo electrónico, ID de usuario, cuerpo de mensajes ni tokens. La retención sigue la política de nuestro espacio de trabajo de logs en la nube (normalmente ~30 días)."
+      ]
+    },
+    {
+      "id": "rights",
+      "title": "8. Tus derechos",
+      "paragraphs": [
+        "Según tu región, puedes tener derechos para acceder, corregir, eliminar o exportar datos personales.",
+        "La eliminación de cuenta y la exportación de copia de seguridad de chats ya están disponibles en Configuración; contáctanos por Diagnóstico si necesitas ayuda adicional."
+      ]
+    },
+    {
+      "id": "retention",
+      "title": "9. Conservación",
+      "paragraphs": [
+        "Los datos de cuenta y perfil se conservan mientras tu cuenta esté activa y durante cualquier periodo de gracia tras solicitar su eliminación.",
+        "El texto cifrado y el contenido multimedia pueden purgarse según calendarios configurados para el servicio (TTL/trabajadores de eliminación de cuenta).",
+        "Los reportes de errores se conservan hasta que los operadores los revisen y eliminen, salvo que la ley exija una retención mayor."
+      ]
+    },
+    {
+      "id": "processors",
+      "title": "10. Proveedores de servicios",
+      "paragraphs": [
+        "Cuando la API en vivo está habilitada, el alojamiento puede incluir Azure (por ejemplo, Static Web Apps, Container Apps, PostgreSQL, Blob Storage, SignalR, Log Analytics) bajo sus términos y programas de seguridad.",
+        "El restablecimiento de contraseña y correos opcionales de alerta de errores usan SMTP que tú configuras; el contenido de esos correos es mínimo."
+      ]
+    },
+    {
+      "id": "children",
+      "title": "11. Menores",
+      "paragraphs": [
+        "Aether no está dirigido a menores de 18 años. No recopilamos datos de menores de forma intencional."
+      ]
+    },
+    {
+      "id": "changes",
+      "title": "12. Cambios",
+      "paragraphs": [
+        "Podemos actualizar esta política. La fecha de “Última actualización” cambiará cuando lo hagamos.",
+        "Los cambios materiales se mostrarán en la app cuando sea posible."
+      ]
+    },
+    {
+      "id": "contact",
+      "title": "13. Contacto",
+      "paragraphs": [
+        "Preguntas sobre privacidad: Configuración → Diagnóstico → Reportar un problema, o el contacto de soporte publicado por tu operador."
+      ]
+    }
+  ]
+}

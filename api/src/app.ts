@@ -1,5 +1,6 @@
 import cors from 'cors';
 import express, { type Request, type Response, type NextFunction } from 'express';
+import helmet from 'helmet';
 import { authRouter } from './routes/auth.js';
 import { accountRouter } from './routes/account.js';
 import { conversationsRouter } from './routes/conversations.js';
@@ -10,20 +11,31 @@ import { supportRouter } from './routes/support.js';
 import { usersRouter } from './routes/users.js';
 import { signalrRouter } from './routes/signalr.js';
 import { adminRouter } from './routes/admin.js';
+import { configRouter } from './routes/config.js';
 import { config } from './config.js';
 import { pool } from './db/pool.js';
 import { purgeExpiredMessages } from './services/messages.js';
 import { purgeExpiredMedia } from './services/media.js';
 import { requestIdMiddleware, requestLogMiddleware } from './middleware/requestLog.js';
+import { globalRateLimit } from './middleware/rateLimit.js';
 import { logger } from './utils/logger.js';
 
 export function createApp() {
   const app = express();
   app.set('trust proxy', 1);
+  app.use(
+    helmet({
+      contentSecurityPolicy: false,
+      crossOriginEmbedderPolicy: false,
+    }),
+  );
   app.use(cors({ origin: config.corsOrigin, credentials: true }));
   app.use(express.json({ limit: '1mb' }));
   app.use(requestIdMiddleware);
   app.use(requestLogMiddleware);
+  if (config.redisUrl) {
+    app.use(globalRateLimit);
+  }
 
   app.get('/health/live', (_req, res) => res.json({ status: 'ok' }));
   app.get('/health', (_req, res) => res.json({ status: 'ok' }));
@@ -50,6 +62,7 @@ export function createApp() {
   v1.use('/support', supportRouter);
   v1.use('/admin', adminRouter);
   v1.use('/users', usersRouter);
+  v1.use('/config', configRouter);
   v1.use('/signalr', signalrRouter);
   app.use('/api/v1', v1);
 

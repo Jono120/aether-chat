@@ -1,7 +1,7 @@
 import React, { useRef, useState } from 'react';
 import { Download, Upload } from 'lucide-react';
 import { useToast } from '../context/ToastContext';
-import { MSG } from '../utils/userMessages';
+import { useTranslation } from '../i18n/index.js';
 import {
   loadStoredConversations,
   saveStoredConversations,
@@ -19,6 +19,7 @@ import {
 
 export default function ChatBackupPanel({ disabled = false, onRestore }) {
   const { toast, confirm } = useToast();
+  const { t } = useTranslation();
   const fileRef = useRef(null);
   const [passphrase, setPassphrase] = useState('');
   const [confirmPassphrase, setConfirmPassphrase] = useState('');
@@ -26,11 +27,11 @@ export default function ChatBackupPanel({ disabled = false, onRestore }) {
 
   const handleExport = async () => {
     if (passphrase.length < 8) {
-      toast(MSG.settingsBackupPassphraseShort, { type: 'error' });
+      toast(t('settingsBackupPassphraseShort'), { type: 'error' });
       return;
     }
     if (passphrase !== confirmPassphrase) {
-      toast(MSG.settingsBackupPassphraseMismatch, { type: 'error' });
+      toast(t('settingsBackupPassphraseMismatch'), { type: 'error' });
       return;
     }
 
@@ -42,11 +43,11 @@ export default function ChatBackupPanel({ disabled = false, onRestore }) {
         passphrase,
       );
       downloadBackupFile(backup);
-      toast(MSG.settingsBackupExportSuccess, { type: 'success' });
+      toast(t('settingsBackupExportSuccess'), { type: 'success' });
       setPassphrase('');
       setConfirmPassphrase('');
     } catch (err) {
-      toast(err?.message ?? MSG.settingsBackupExportFailed, { type: 'error' });
+      toast(err?.message ?? t('settingsBackupExportFailed'), { type: 'error' });
     } finally {
       setBusy(false);
     }
@@ -58,13 +59,13 @@ export default function ChatBackupPanel({ disabled = false, onRestore }) {
     if (!file) return;
 
     if (passphrase.length < 8) {
-      toast(MSG.settingsBackupPassphraseShort, { type: 'error' });
+      toast(t('settingsBackupPassphraseShort'), { type: 'error' });
       return;
     }
 
-    const approved = await confirm(MSG.settingsBackupImportConfirm, {
-      confirmLabel: MSG.settingsBackupImportConfirmBtn,
-      cancelLabel: MSG.cancel,
+    const approved = await confirm(t('settingsBackupImportConfirm'), {
+      confirmLabel: t('settingsBackupImportConfirmBtn'),
+      cancelLabel: t('cancel'),
     });
     if (!approved) return;
 
@@ -82,11 +83,11 @@ export default function ChatBackupPanel({ disabled = false, onRestore }) {
       }
 
       onRestore?.(envelope);
-      toast(MSG.settingsBackupImportSuccess, { type: 'success' });
+      toast(t('settingsBackupImportSuccess'), { type: 'success' });
       setPassphrase('');
       setConfirmPassphrase('');
     } catch (err) {
-      toast(err?.message ?? MSG.settingsBackupImportFailed, { type: 'error' });
+      toast(err?.message ?? t('settingsBackupImportFailed'), { type: 'error' });
     } finally {
       setBusy(false);
     }
@@ -95,12 +96,12 @@ export default function ChatBackupPanel({ disabled = false, onRestore }) {
   return (
     <div className="chat-backup-panel">
       <div className="settings-info-box">
-        <h4 className="settings-info-box-title">{MSG.settingsBackupTitle}</h4>
-        <p className="settings-info-box-text">{MSG.settingsBackupDesc}</p>
+        <h4 className="settings-info-box-title">{t('settingsBackupTitle')}</h4>
+        <p className="settings-info-box-text">{t('settingsBackupDesc')}</p>
       </div>
 
       <label className="profile-field">
-        <span className="profile-field-label">{MSG.settingsBackupPassphrase}</span>
+        <span className="profile-field-label">{t('settingsBackupPassphrase')}</span>
         <input
           type="password"
           className="profile-input"
@@ -113,7 +114,7 @@ export default function ChatBackupPanel({ disabled = false, onRestore }) {
       </label>
 
       <label className="profile-field">
-        <span className="profile-field-label">{MSG.settingsBackupPassphraseConfirm}</span>
+        <span className="profile-field-label">{t('settingsBackupPassphraseConfirm')}</span>
         <input
           type="password"
           className="profile-input"
@@ -133,7 +134,7 @@ export default function ChatBackupPanel({ disabled = false, onRestore }) {
           disabled={disabled || busy}
         >
           <Download className="icon-sm" />
-          {busy ? MSG.settingsBackupWorking : MSG.settingsBackupExport}
+          {busy ? t('settingsBackupWorking') : t('settingsBackupExport')}
         </button>
         <button
           type="button"
@@ -142,7 +143,7 @@ export default function ChatBackupPanel({ disabled = false, onRestore }) {
           disabled={disabled || busy}
         >
           <Upload className="icon-sm" />
-          {MSG.settingsBackupImport}
+          {t('settingsBackupImport')}
         </button>
         <input
           ref={fileRef}

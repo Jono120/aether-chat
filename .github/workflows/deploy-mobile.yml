@@ -1,0 +1,282 @@
+name: Deploy mobile
+
+on:
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: Target platform
+        type: choice
+        options:
+          - all
+          - android
+          - ios
+        default: all
+      channel:
+        description: Release channel
+        type: choice
+        options:
+          - internal
+          - testflight
+          - production
+        default: internal
+      version:
+        description: Optional semver override (defaults to mobile/package.json)
+        required: false
+        type: string
+  push:
+    tags:
+      - mobile-v*
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-mobile-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  VITE_API_URL: ${{ vars.VITE_API_URL }}
+  VITE_SIGNALR_URL: ${{ vars.VITE_SIGNALR_URL }}
+  VITE_IOS_APP_STORE_URL: ${{ vars.VITE_IOS_APP_STORE_URL }}
+  VITE_ANDROID_PLAY_STORE_URL: ${{ vars.VITE_ANDROID_PLAY_STORE_URL }}
+
+jobs:
+  resolve:
+    runs-on: ubuntu-latest
+    outputs:
+      platform: ${{ steps.meta.outputs.platform }}
+      android_channel: ${{ steps.meta.outputs.android_channel }}
+      ios_channel: ${{ steps.meta.outputs.ios_channel }}
+      android_environment: ${{ steps.meta.outputs.android_environment }}
+      ios_environment: ${{ steps.meta.outputs.ios_environment }}
+      version_name: ${{ steps.meta.outputs.version_name }}
+      version_code: ${{ steps.meta.outputs.version_code }}
+      run_android: ${{ steps.meta.outputs.run_android }}
+      run_ios: ${{ steps.meta.outputs.run_ios }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - name: Resolve release metadata
+        id: meta
+        run: |
+          if [ "${{ github.event_name }}" = "push" ]; then
+            PLATFORM="all"
+            ANDROID_CHANNEL="internal"
+            IOS_CHANNEL="testflight"
+          else
+            PLATFORM="${{ github.event.inputs.platform }}"
+            CHANNEL="${{ github.event.inputs.channel }}"
+            case "$CHANNEL" in
+              internal)
+                ANDROID_CHANNEL="internal"
+                IOS_CHANNEL="skip"
+                ;;
+              testflight)
+                ANDROID_CHANNEL="skip"
+                IOS_CHANNEL="testflight"
+                ;;
+              production)
+                ANDROID_CHANNEL="production"
+                IOS_CHANNEL="production"
+                ;;
+            esac
+          fi
+
+          VERSION_INPUT="${{ github.event.inputs.version }}"
+          if [ -n "$VERSION_INPUT" ]; then
+            VERSION_NAME="$VERSION_INPUT"
+          elif [ "${{ github.event_name }}" = "push" ]; then
+            VERSION_NAME="${GITHUB_REF_NAME#mobile-v}"
+          else
+            VERSION_NAME="$(node -p "require('./mobile/package.json').version")"
+          fi
+
+          VERSION_CODE="${GITHUB_RUN_NUMBER}"
+
+          if [ "$PLATFORM" = "all" ] || [ "$PLATFORM" = "android" ]; then
+            if [ "$ANDROID_CHANNEL" != "skip" ]; then
+              RUN_ANDROID=true
+            else
+              RUN_ANDROID=false
+            fi
+          else
+            RUN_ANDROID=false
+          fi
+
+          if [ "$PLATFORM" = "all" ] || [ "$PLATFORM" = "ios" ]; then
+            if [ "$IOS_CHANNEL" != "skip" ]; then
+              RUN_IOS=true
+            else
+              RUN_IOS=false
+            fi
+          else
+            RUN_IOS=false
+          fi
+
+          android_environment="mobile-staging"
+          ios_environment="mobile-staging"
+          if [ "$ANDROID_CHANNEL" = "production" ]; then
+            android_environment="mobile-production"
+          fi
+          if [ "$IOS_CHANNEL" = "production" ]; then
+            ios_environment="mobile-production"
+          fi
+
+          echo "platform=$PLATFORM" >> "$GITHUB_OUTPUT"
+          echo "android_channel=$ANDROID_CHANNEL" >> "$GITHUB_OUTPUT"
+          echo "ios_channel=$IOS_CHANNEL" >> "$GITHUB_OUTPUT"
+          echo "android_environment=$android_environment" >> "$GITHUB_OUTPUT"
+          echo "ios_environment=$ios_environment" >> "$GITHUB_OUTPUT"
+          echo "version_name=$VERSION_NAME" >> "$GITHUB_OUTPUT"
+          echo "version_code=$VERSION_CODE" >> "$GITHUB_OUTPUT"
+          echo "run_android=$RUN_ANDROID" >> "$GITHUB_OUTPUT"
+          echo "run_ios=$RUN_IOS" >> "$GITHUB_OUTPUT"
+
+  release-android:
+    needs: resolve
+    if: needs.resolve.outputs.run_android == 'true'
+    runs-on: ubuntu-latest
+    environment: ${{ needs.resolve.outputs.android_environment }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "20"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci && npm run mobile:install
+
+      - name: Build SPA for mobile
+        run: npm run mobile:build:ci
+
+      - name: Setup Java
+        uses: actions/setup-java@b36c23c0d998641eff861008f374ee103c25ac73 # v4.4.0
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@40fd30fb8d7440372e1316f5d1809ec01dcd3699 # v4.0.1
+        with:
+          packages: platforms;android-35
+
+      - name: Decode release keystore
+        run: echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > "$RUNNER_TEMP/keystore.jks"
+
+      - name: Build signed release bundle
+        run: npm run mobile:android:release
+        env:
+          ANDROID_KEYSTORE_FILE: ${{ runner.temp }}/keystore.jks
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          ANDROID_VERSION_CODE: ${{ needs.resolve.outputs.version_code }}
+          ANDROID_VERSION_NAME: ${{ needs.resolve.outputs.version_name }}
+
+      - name: Setup Ruby
+        uses: ruby/setup-ruby@12fd324f1d0b43274fdc8130f6980590a667c455 # v1.312.0
+        with:
+          ruby-version: "3.3"
+          bundler-cache: true
+          working-directory: mobile
+
+      - name: Upload to Play Store
+        working-directory: mobile
+        env:
+          PLAY_STORE_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_STORE_SERVICE_ACCOUNT_JSON }}
+          AAB_PATH: ${{ github.workspace }}/mobile/android/app/build/outputs/bundle/release/app-release.aab
+        run: |
+          if [ "${{ needs.resolve.outputs.android_channel }}" = "internal" ]; then
+            bundle exec fastlane android_internal
+          else
+            bundle exec fastlane android_production
+          fi
+
+      - name: Upload Android artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: android-release-aab
+          path: mobile/android/app/build/outputs/bundle/release/app-release.aab
+          retention-days: 90
+
+  release-ios:
+    needs: resolve
+    if: needs.resolve.outputs.run_ios == 'true'
+    runs-on: macos-latest
+    environment: ${{ needs.resolve.outputs.ios_environment }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "20"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci && npm run mobile:install
+
+      - name: Build SPA for mobile
+        run: npm run mobile:build:ci
+
+      - name: Install CocoaPods
+        run: pod install
+        working-directory: mobile/ios/App
+
+      - name: Build and export IPA
+        working-directory: mobile/ios/App
+        env:
+          APPLE_TEAM_ID: ${{ vars.APPLE_TEAM_ID }}
+        run: |
+          xcodebuild -workspace App.xcworkspace \
+            -scheme App \
+            -configuration Release \
+            -archivePath "$RUNNER_TEMP/App.xcarchive" \
+            -destination 'generic/platform=iOS' \
+            archive \
+            DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
+            -allowProvisioningUpdates
+
+          /usr/libexec/PlistBuddy -c "Set :teamID $APPLE_TEAM_ID" exportOptions.plist || \
+            /usr/libexec/PlistBuddy -c "Add :teamID string $APPLE_TEAM_ID" exportOptions.plist
+
+          xcodebuild -exportArchive \
+            -archivePath "$RUNNER_TEMP/App.xcarchive" \
+            -exportPath "$RUNNER_TEMP/export" \
+            -exportOptionsPlist exportOptions.plist \
+            -allowProvisioningUpdates
+
+      - name: Setup Ruby
+        uses: ruby/setup-ruby@12fd324f1d0b43274fdc8130f6980590a667c455 # v1.312.0
+        with:
+          ruby-version: "3.3"
+          bundler-cache: true
+          working-directory: mobile
+
+      - name: Upload to App Store Connect
+        working-directory: mobile
+        env:
+          APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
+          APP_STORE_CONNECT_API_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_API_ISSUER_ID }}
+          APP_STORE_CONNECT_API_KEY_CONTENT: ${{ secrets.APP_STORE_CONNECT_API_KEY_CONTENT }}
+          APPLE_TEAM_ID: ${{ vars.APPLE_TEAM_ID }}
+          IPA_PATH: ${{ runner.temp }}/export/App.ipa
+        run: |
+          if [ "${{ needs.resolve.outputs.ios_channel }}" = "testflight" ]; then
+            bundle exec fastlane ios_beta
+          else
+            bundle exec fastlane ios_production
+          fi
+
+      - name: Upload iOS artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: ios-release-ipa
+          path: ${{ runner.temp }}/export/App.ipa
+          retention-days: 90

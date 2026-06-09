@@ -9,15 +9,31 @@
     "dev": "vite",
     "dev:open": "vite --open",
     "build": "vite build",
+    "build:mobile": "node scripts/mobile-sync.mjs",
+    "mobile:setup": "node scripts/mobile-setup.mjs",
+    "mobile:sync": "node scripts/mobile-sync.mjs",
+    "mobile:install": "npm ci --prefix mobile",
+    "mobile:build:ci": "node scripts/mobile-sync.mjs",
+    "mobile:android:debug": "cd mobile/android && ./gradlew assembleDebug",
+    "mobile:android:release": "cd mobile/android && ./gradlew bundleRelease",
+    "mobile:ios:sim": "xcodebuild -workspace mobile/ios/App/App.xcworkspace -scheme App -destination 'platform=iOS Simulator,name=iPhone 16' -configuration Debug build",
+    "mobile:open:android": "npm run open:android --prefix mobile",
+    "mobile:open:ios": "npm run open:ios --prefix mobile",
     "lint": "eslint .",
     "preview": "vite preview",
-    "test:responsive": "node scripts/responsive-audit.mjs"
+    "test:responsive": "node scripts/responsive-audit.mjs",
+    "test:i18n": "node --test src/i18n/countryLocaleMap.test.js"
   },
   "dependencies": {
+    "@capacitor/app": "^7.0.1",
+    "@capacitor/core": "^7.2.0",
+    "@capacitor/splash-screen": "^7.0.1",
     "@microsoft/signalr": "^8.0.7",
+    "i18next": "^26.3.1",
     "lucide-react": "^1.16.0",
     "react": "^19.2.6",
-    "react-dom": "^19.2.6"
+    "react-dom": "^19.2.6",
+    "react-i18next": "^17.0.8"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

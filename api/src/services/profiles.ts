@@ -1,4 +1,13 @@
 import { pool } from '../db/pool.js';
+import { getDiscoveryPreferences } from './discoveryPreferences.js';
+import { getPrivacyPreferences } from './privacyPreferences.js';
+import { buildDiscoveryFilterSql, isDiscoveryFilterActive } from './discoveryFilterSql.js';
+import { applyFuzzingStrategyToLabel } from '../utils/fuzzingDisplay.js';
+import {
+  normalizeSocialLinks,
+  parseStoredSocialLinks,
+  type SocialLinks,
+} from '../utils/socialLinks.js';
 
 export const VALID_GENDERS = new Set([
   'male',
@@ -27,6 +36,7 @@ export type ProfileDto = {
   lookingFor: string[];
   publicKey?: string;
   avatarMediaId?: string | null;
+  socialLinks: SocialLinks;
 };
 
 export type MyProfileDto = ProfileDto & {
@@ -50,6 +60,7 @@ export type UpdateMyProfileInput = {
   avatarMediaId?: string | null;
   allowProfileMediaUpload?: boolean;
   allowAlbumMediaUpload?: boolean;
+  socialLinks?: SocialLinks;
 };
 
 function validateProfileInput(input: UpdateMyProfileInput): void {
@@ -65,6 +76,9 @@ function validateProfileInput(input: UpdateMyProfileInput): void {
     if (!Array.isArray(input.lookingFor) || input.lookingFor.some((v) => typeof v !== 'string')) {
       throw new Error('Invalid lookingFor');
     }
+  }
+  if (input.socialLinks !== undefined) {
+    normalizeSocialLinks(input.socialLinks);
   }
 }
 
@@ -86,6 +100,7 @@ function rowToProfile(row: Record<string, unknown>, index: number): ProfileDto {
     lookingFor: (row.looking_for as string[]) ?? [],
     publicKey: row.fingerprint as string | undefined,
     avatarMediaId: (row.avatar_media_id as string | null) ?? null,
+    socialLinks: parseStoredSocialLinks(row.social_links),
   };
 }
 
@@ -175,6 +190,7 @@ export async function updateMyProfile(
        has_secure_album = COALESCE($9, has_secure_album),
        discoverable = COALESCE($12, discoverable),
        avatar_colors = COALESCE($13, avatar_colors),
+       social_links = COALESCE($14, social_links),
        updated_at = now()
      WHERE user_id = $1`,
     [
@@ -191,6 +207,7 @@ export async function updateMyProfile(
       input.gender !== undefined,
       input.discoverable ?? null,
       colors ? JSON.stringify(colors) : null,
+      input.socialLinks !== undefined ? JSON.stringify(normalizeSocialLinks(input.socialLinks)) : null,
     ],
   );
 
@@ -221,21 +238,69 @@ export async function updateMyProfile(
   return getMyProfile(userId, entraOid);
 }
 
-export async function listNearbyProfiles(excludeUserId: string): Promise<ProfileDto[]> {
-  const result = await pool.query(
-    `${PROFILE_SELECT}
-     WHERE p.discoverable = true
-       AND p.user_id != $1
-       AND u.status = 'active'
-       AND NOT EXISTS (
-         SELECT 1 FROM user_blocks b
-         WHERE (b.blocker_user_id = $1 AND b.blocked_user_id = p.user_id)
-            OR (b.blocker_user_id = p.user_id AND b.blocked_user_id = $1)
-       )
-     ORDER BY p.display_name`,
+export type NearbyProfilesResult = {
+  profiles: ProfileDto[];
+  totalNearby: number;
+  filtersActive: boolean;
+};
+
+const NEARBY_BASE_WHERE = `
+  WHERE p.discoverable = true
+    AND p.user_id != $1
+    AND u.status = 'active'
+    AND NOT EXISTS (
+      SELECT 1 FROM user_blocks b
+      WHERE (b.blocker_user_id = $1 AND b.blocked_user_id = p.user_id)
+         OR (b.blocker_user_id = p.user_id AND b.blocked_user_id = $1)
+    )
+`;
+
+export async function listNearbyProfiles(excludeUserId: string): Promise<NearbyProfilesResult> {
+  const [{ discoveryFilters }, { fuzzingStrategy }] = await Promise.all([
+    getDiscoveryPreferences(excludeUserId),
+    getPrivacyPreferences(excludeUserId),
+  ]);
+
+  const filtersActive = isDiscoveryFilterActive(discoveryFilters);
+
+  const countResult = await pool.query(
+    `SELECT COUNT(*)::int AS cnt
+     FROM profiles p
+     JOIN users u ON u.id = p.user_id
+     ${NEARBY_BASE_WHERE}`,
     [excludeUserId],
   );
-  return result.rows.map((row, i) => rowToProfile(row, i));
+  const totalNearby = (countResult.rows[0]?.cnt as number) ?? 0;
+
+  let where = NEARBY_BASE_WHERE;
+  const queryParams: unknown[] = [excludeUserId];
+
+  if (filtersActive) {
+    const { clauses, params } = buildDiscoveryFilterSql(discoveryFilters, 2);
+    if (clauses.length) {
+      where += ` AND ${clauses.join(' AND ')}`;
+      queryParams.push(...params);
+    }
+  }
+
+  const result = await pool.query(
+    `${PROFILE_SELECT}
+     ${where}
+     ORDER BY p.display_name`,
+    queryParams,
+  );
+
+  return {
+    profiles: result.rows.map((row, i) => {
+      const profile = rowToProfile(row, i);
+      return {
+        ...profile,
+        fuzzedDistance: applyFuzzingStrategyToLabel(profile.fuzzedDistance, fuzzingStrategy),
+      };
+    }),
+    totalNearby,
+    filtersActive,
+  };
 }
 
 export async function getProfileByEntraOid(entraOid: string): Promise<ProfileDto | null> {

@@ -72,7 +72,17 @@ Feature reference for stakeholders and evaluators. For security boundaries see [
 
 **Web policy:** Private albums are blocked on web browsers. The Grid **Album** button is disabled with an explanatory banner; chat hides the album tab and album uploads. Profile avatars still work on web. The API rejects album upload SAS requests when `X-Aether-Client: web` and `purpose: album`.
 
-**Implementation note:** `albumPhotos` mock data; blur when `albumScreenshotShield` (Privacy Centre) is on and the window loses focus — native app only. Platform detection via `src/utils/platform.js` (`Capacitor.isNativePlatform()`).
+**Implementation note:** `albumPhotos` mock data; blur when `albumScreenshotShield` (Privacy Centre) is on. On web, defocus uses window blur; on native, `@capacitor/app` `appStateChange` via `useAppForeground.js`. Platform detection: `src/utils/platform.js`.
+
+---
+
+## Native app (Capacitor)
+
+**What it shows:** Same SPA inside an iOS or Android WebView with private albums, native client header, and splash screen.
+
+**How to trigger:** Build with `npm run mobile:setup` (first time) then `npm run mobile:open:android` or `mobile:open:ios`.
+
+**Implementation note:** Shell in [`mobile/`](../mobile/); SPA plugins in root `package.json` (`@capacitor/app`, `@capacitor/splash-screen`). `initNativeShell()` in `main.jsx` hides splash and adds `html.native-shell` for safe-area CSS.
 
 ---
 
@@ -82,7 +92,7 @@ Feature reference for stakeholders and evaluators. For security boundaries see [
 
 **How to trigger:** **Settings → Discovery** for full controls; **Filters** button on the Grid for quick filter edits.
 
-**Implementation note:** Preferences stored in `user_preferences.discovery_filters` and `profile_view_prefs` (migration `009_discovery_preferences.sql`); client helpers in `profileFilters.js` and `discoveryPrefsStorage.js`. Filtering is client-side for current list sizes.
+**Implementation note:** Preferences stored in `user_preferences.discovery_filters` and `profile_view_prefs` (migration `009_discovery_preferences.sql`). With the API enabled, `GET /profiles/nearby` applies the viewer's saved filters in SQL and returns `{ profiles, totalNearby, filtersActive }`. Demo mode filters client-side via `profileFilters.js` (logic mirrored in `api/src/utils/discoveryFilterMatch.ts`). Index: migration `010_discovery_filter_index.sql`.
 
 ---
 
@@ -152,7 +162,7 @@ Feature reference for stakeholders and evaluators. For security boundaries see [
 
 **How to trigger:** Privacy Centre → **Location & Visibility** card.
 
-**Implementation note:** `fuzzingStrategy` React state only — does not change Grid profile distances in this prototype.
+**Implementation note:** Persisted via `GET/PATCH /users/me/privacy-preferences`. Labels on the grid are transformed client-side (demo) or when listing nearby profiles (API) using `fuzzingDisplay.js` — no raw geo in this prototype.
 
 ---
 
@@ -166,7 +176,7 @@ Feature reference for stakeholders and evaluators. For security boundaries see [
 6. **Album** — Back to Grid → profile with secure album → **Secure Album**; blur by switching away from the browser window.
 7. **EXIF** — In chat, open EXIF panel, upload a JPEG, inspect, then strip and note size change.
 8. **Privacy Centre** — **Security** tab; show key ring → **Rotate Keys**.
-9. **Fuzzing UI** — Select a different distance fuzzing strategy (explain UI-only).
+9. **Fuzzing UI** — Select a distance fuzzing strategy; reload to confirm it persists (API or localStorage).
 10. **Panic** — Header panic confirm → verify alert, Grid return, new keys; mention LS keys cleared per [SECURITY.md](SECURITY.md).
 
 ---
@@ -180,3 +190,27 @@ Place captures under `docs/images/` when available, for example:
 - `docs/images/privacy-keyring.png`
 
 The README links here; images are not required to run the prototype.
+
+---
+
+## Geo-based localisation (i18n)
+
+**What it does:** Resolves UI copy from the user’s country (edge proxy headers when online, timezone/browser fallback offline). Supported locales: `en-NZ` (default), `es`, `fr`.
+
+**How it works:**
+
+1. On cold start, a cached locale from `localStorage` is applied immediately to avoid flicker.
+2. `GET /api/v1/config/locale` reads trusted geo headers (`CF-IPCountry`, `X-Country-Code`, `X-Forwarded-Country`).
+3. Without the API, the client maps `Intl` timezone → country, then country → locale (Quebec: `America/Toronto`/`America/Montreal` + `fr` browser language → `fr`).
+4. Strings live in `src/i18n/locales/*.json`; legal copy uses the `legal` namespace per locale.
+5. `document.documentElement.lang` updates when the locale changes.
+
+**Implementation:** [`src/i18n/`](../src/i18n/), [`api/src/services/localeDetection.ts`](../api/src/services/localeDetection.ts).
+
+**Not in scope (documented for later):**
+
+- **User-generated content** — bios, custom interests, and chat text are not translated.
+- **Backend email / push copy** — password-reset and alert templates remain English until a separate localisation pass.
+- **RTL locales** — layout assumes LTR; no `dir="rtl"` handling yet.
+- **Accept-Language negotiation** — geo/country takes precedence; browser language is only a fallback when geo is unknown.
+- **Manual language picker** — locale is geo-derived only (no Settings override for travellers).

@@ -1,5 +1,5 @@
 import React from 'react';
-import { MSG } from '../utils/userMessages';
+import { useTranslation } from '../i18n/index.js';
 
 function openLegal(type) {
   window.location.hash = type;
@@ -9,16 +9,17 @@ function openLegal(type) {
  * Inline links to Terms (#terms) and Privacy (#privacy). App shows LegalPage overlay on hash change.
  */
 export default function LegalLinks({ className = 'legal-links' }) {
+  const { t } = useTranslation();
   return (
     <p className={className}>
       <button type="button" className="legal-links__btn" onClick={() => openLegal('terms')}>
-        {MSG.legalTermsLink}
+        {t('legalTermsLink')}
       </button>
       <span className="legal-links__sep" aria-hidden="true">
         ·
       </span>
       <button type="button" className="legal-links__btn" onClick={() => openLegal('privacy')}>
-        {MSG.legalPrivacyLink}
+        {t('legalPrivacyLink')}
       </button>
     </p>
   );

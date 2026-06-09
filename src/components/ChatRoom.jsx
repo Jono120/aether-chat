@@ -30,11 +30,12 @@ import {
   unblockUserLocal,
 } from '../utils/blockStorage';
 import { devPeerKeysFor, resolvePeerApiId } from '../utils/devPeerKeys';
-import { MSG } from '../utils/userMessages';
+import { useTranslation } from '../i18n/index.js';
 import { isWebBrowser } from '../utils/platform';
 import WebAlbumBlockedBanner from './WebAlbumBlockedBanner';
 import { useRealtimeMessages } from '../hooks/useRealtimeMessages';
 import { useAlbumScreenshotGuard } from '../hooks/useAlbumScreenshotGuard';
+import useAppForeground from '../hooks/useAppForeground';
 import {
   loadStoredConversations,
   saveStoredConversations,
@@ -68,6 +69,7 @@ export default function ChatRoom({
   readReceiptsEnabled = false,
 }) {
   const { toast, confirm } = useToast();
+  const { t } = useTranslation();
   const webBlocked = isWebBrowser();
   const albumEnabled =
     myProfile?.hasSecureAlbum !== false && myProfile?.allowAlbumMediaUpload !== false;
@@ -94,18 +96,33 @@ export default function ChatRoom({
   const [isStripping, setIsStripping] = useState(false);
 
   // Screen shield defocus simulator state
-  const [isWindowFocused, setIsWindowFocused] = useState(true);
   const [shieldReason, setShieldReason] = useState(null);
 
   const handleCaptureAttempt = useCallback(() => {
     setShieldReason('screenshot');
-    toast(MSG.albumScreenshotWarning, { type: 'warning' });
+    toast(t('albumScreenshotWarning'), { type: 'warning' });
   }, [toast]);
 
   const { forceShield, resetForceShield } = useAlbumScreenshotGuard({
     enabled: albumScreenshotShield,
     active: showAlbum,
     onCaptureAttempt: handleCaptureAttempt,
+  });
+
+  const handleForeground = useCallback(() => {
+    resetForceShield();
+    setShieldReason(null);
+  }, [resetForceShield]);
+
+  const handleBackground = useCallback(() => {
+    if (showAlbum && albumScreenshotShield) {
+      setShieldReason('defocus');
+    }
+  }, [showAlbum, albumScreenshotShield]);
+
+  const isWindowFocused = useAppForeground({
+    onForeground: handleForeground,
+    onBackground: handleBackground,
   });
   const [groupKey, setGroupKey] = useState(null);
   const [conversationId, setConversationId] = useState(null);
@@ -335,27 +352,6 @@ export default function ChatRoom({
   }, [activeChatProfile, startWithAlbum, webBlocked]);
 
   useEffect(() => {
-    const handleFocus = () => {
-      setIsWindowFocused(true);
-      resetForceShield();
-      setShieldReason(null);
-    };
-    const handleBlur = () => {
-      setIsWindowFocused(false);
-      if (showAlbum && albumScreenshotShield) {
-        setShieldReason('defocus');
-      }
-    };
-
-    window.addEventListener('focus', handleFocus);
-    window.addEventListener('blur', handleBlur);
-    return () => {
-      window.removeEventListener('focus', handleFocus);
-      window.removeEventListener('blur', handleBlur);
-    };
-  }, [showAlbum, albumScreenshotShield, resetForceShield]);
-
-  useEffect(() => {
     if (!showAlbum) setShieldReason(null);
   }, [showAlbum]);
 
@@ -419,39 +415,39 @@ export default function ChatRoom({
     if (!selectedChat || selectedChat.isGroup) return;
     const peerId = peerApiId ?? selectedChat.id;
     if (peerBlocked) {
-      const approved = await confirm(MSG.chatUnblockConfirm, {
-        confirmLabel: MSG.chatUnblockConfirmBtn,
+      const approved = await confirm(t('chatUnblockConfirm'), {
+        confirmLabel: t('chatUnblockConfirmBtn'),
       });
       if (!approved) return;
       if (isApiEnabled()) {
         try {
           await unblockUser(peerId);
         } catch (err) {
-          toast(err?.message ?? MSG.authFailed, { type: 'error' });
+          toast(err?.message ?? t('authFailed'), { type: 'error' });
           return;
         }
       }
       unblockUserLocal(peerId);
       unblockUserLocal(selectedChat.id);
       setPeerBlocked(false);
-      toast(MSG.chatUnblockConfirmBtn, { type: 'success' });
+      toast(t('chatUnblockConfirmBtn'), { type: 'success' });
     } else {
-      const approved = await confirm(MSG.chatBlockConfirm, {
-        confirmLabel: MSG.chatBlockConfirmBtn,
+      const approved = await confirm(t('chatBlockConfirm'), {
+        confirmLabel: t('chatBlockConfirmBtn'),
       });
       if (!approved) return;
       if (isApiEnabled()) {
         try {
           await blockUser(peerId);
         } catch (err) {
-          toast(err?.message ?? MSG.authFailed, { type: 'error' });
+          toast(err?.message ?? t('authFailed'), { type: 'error' });
           return;
         }
       }
       blockUserLocal(peerId);
       blockUserLocal(selectedChat.id);
       setPeerBlocked(true);
-      toast(MSG.chatBlockConfirmBtn, { type: 'info' });
+      toast(t('chatBlockConfirmBtn'), { type: 'info' });
     }
     setSafetyMenuOpen(false);
   };
@@ -468,13 +464,13 @@ export default function ChatRoom({
           conversationId,
         });
       }
-      toast(MSG.chatReportSuccess, { type: 'success' });
+      toast(t('chatReportSuccess'), { type: 'success' });
       setReportOpen(false);
       setReportReason('');
       setReportDetails('');
       setSafetyMenuOpen(false);
     } catch (err) {
-      toast(err?.message ?? MSG.authFailed, { type: 'error' });
+      toast(err?.message ?? t('authFailed'), { type: 'error' });
     }
   };
 
@@ -486,7 +482,7 @@ export default function ChatRoom({
     if (!inputText.trim() || !selectedChat) return;
     if (selectedChat.isGroup && !groupKey) return;
     if (!selectedChat.isGroup && peerBlocked) {
-      setSendError(MSG.chatBlockedSend);
+      setSendError(t('chatBlockedSend'));
       return;
     }
     setSendError(null);
@@ -526,7 +522,7 @@ export default function ChatRoom({
       const peerKeys = peerKeyCache[chatKey] ?? (await loadPeerKeys(chatKey));
       const peerJwk = resolvePeerPublicJwk(peerKeys);
       if (!peerJwk) {
-        setSendError(MSG.sendNoPeerKey);
+        setSendError(t('sendNoPeerKey'));
         return;
       }
 
@@ -574,7 +570,7 @@ export default function ChatRoom({
 
   const simulatePartnerResponse = async (chatKey) => {
     const text =
-      MSG.simulateResponses[Math.floor(Math.random() * MSG.simulateResponses.length)];
+      t('simulateResponses', { returnObjects: true })[Math.floor(Math.random() * t('simulateResponses', { returnObjects: true }).length)];
     const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
     setConversations((prev) => ({
@@ -661,7 +657,7 @@ export default function ChatRoom({
           {
             id: Date.now(),
             sender: 'me',
-            text: MSG.photoShared(compressionQuality),
+            text: t('photoShared'),
             timestamp,
             isE2EE: true
           }
@@ -715,10 +711,10 @@ export default function ChatRoom({
 
   const shieldCoverDesc =
     shieldReason === 'screenshot' || forceShield
-      ? MSG.albumShieldDescScreenshot
+      ? t('albumShieldDescScreenshot')
       : !isWindowFocused
-        ? MSG.albumShieldDescDefocus
-        : MSG.albumShieldDesc;
+        ? t('albumShieldDescDefocus')
+        : t('albumShieldDesc');
 
   return (
     <div className="chat-layout">
@@ -727,7 +723,7 @@ export default function ChatRoom({
       <div className={`chat-sidebar glass-panel ${selectedChat ? 'chat-sidebar--hidden' : ''}`}>
         <div className="sidebar-header">
           <h3 className="sidebar-title">Active Contacts</h3>
-          <p className="sidebar-desc">{MSG.chatSidebarDesc}</p>
+          <p className="sidebar-desc">{t('chatSidebarDesc')}</p>
         </div>
         
         <div className="contact-list custom-scrollbar">
@@ -798,11 +794,11 @@ export default function ChatRoom({
               <h3 className="chat-header-name">
                 {selectedChat?.name}
                 <span className="metadata-badge badge-success metadata-badge--xs">
-                  <Lock className="icon-xs" /> {MSG.chatEncryptedBadge}
+                  <Lock className="icon-xs" /> {t('chatEncryptedBadge')}
                 </span>
               </h3>
               <p className="chat-header-fingerprint">
-                {selectedChat?.isGroup ? MSG.chatGroupSubtitle : MSG.chatDirectSubtitle}
+                {selectedChat?.isGroup ? t('chatGroupSubtitle') : t('chatDirectSubtitle')}
               </p>
             </div>
           </div>
@@ -823,7 +819,7 @@ export default function ChatRoom({
                   type="button"
                   className="chat-header-action-btn chat-header-action-btn--icon"
                   aria-expanded={safetyMenuOpen}
-                  aria-label={MSG.chatBlockUser}
+                  aria-label={t('chatBlockUser')}
                   onClick={() => setSafetyMenuOpen((o) => !o)}
                 >
                   <MoreVertical className="icon-sm" />
@@ -835,7 +831,7 @@ export default function ChatRoom({
                       className="chat-safety-menu-item"
                       onClick={handleToggleBlock}
                     >
-                      {peerBlocked ? MSG.chatUnblockUser : MSG.chatBlockUser}
+                      {peerBlocked ? t('chatUnblockUser') : t('chatBlockUser')}
                     </button>
                     <button
                       type="button"
@@ -845,7 +841,7 @@ export default function ChatRoom({
                         setSafetyMenuOpen(false);
                       }}
                     >
-                      {MSG.chatReportUser}
+                      {t('chatReportUser')}
                     </button>
                   </div>
                 )}
@@ -897,8 +893,8 @@ export default function ChatRoom({
                             >
                               {receiptTick >= 0 &&
                                 (isOutgoingRead(msg.id)
-                                  ? MSG.chatReceiptRead
-                                  : MSG.chatReceiptDelivered)}
+                                  ? t('chatReceiptRead')
+                                  : t('chatReceiptDelivered'))}
                             </span>
                           )}
                       </div>
@@ -908,7 +904,7 @@ export default function ChatRoom({
                 </div>
 
                 {peerBlocked && !selectedChat?.isGroup && (
-                  <p className="warning-banner-text chat-inline-warning">{MSG.chatBlockedBanner}</p>
+                  <p className="warning-banner-text chat-inline-warning">{t('chatBlockedBanner')}</p>
                 )}
 
                 {sendError && (
@@ -919,9 +915,9 @@ export default function ChatRoom({
 
                 {reportOpen && !selectedChat?.isGroup && (
                   <form className="chat-report-form glass-panel" onSubmit={handleSubmitReport}>
-                    <h4 className="settings-info-box-title">{MSG.chatReportTitle}</h4>
+                    <h4 className="settings-info-box-title">{t('chatReportTitle')}</h4>
                     <label className="profile-field">
-                      <span className="profile-field-label">{MSG.chatReportReason}</span>
+                      <span className="profile-field-label">{t('chatReportReason')}</span>
                       <input
                         className="profile-input"
                         value={reportReason}
@@ -930,7 +926,7 @@ export default function ChatRoom({
                       />
                     </label>
                     <label className="profile-field">
-                      <span className="profile-field-label">{MSG.chatReportDetails}</span>
+                      <span className="profile-field-label">{t('chatReportDetails')}</span>
                       <textarea
                         className="profile-input profile-textarea"
                         rows={2}
@@ -940,10 +936,10 @@ export default function ChatRoom({
                     </label>
                     <div className="chat-report-form-actions">
                       <button type="button" className="btn btn-secondary btn-sm" onClick={() => setReportOpen(false)}>
-                        {MSG.cancel}
+                        {t('cancel')}
                       </button>
                       <button type="submit" className="btn btn-primary btn-sm">
-                        {MSG.chatReportSubmit}
+                        {t('chatReportSubmit')}
                       </button>
                     </div>
                   </form>
@@ -1009,14 +1005,14 @@ export default function ChatRoom({
                     <h4 className="album-title">Private Album</h4>
                     <p className="album-desc">
                       {albumScreenshotShield
-                        ? MSG.albumShieldDesc
-                        : MSG.settingsAlbumShieldDesc}
+                        ? t('albumShieldDesc')
+                        : t('settingsAlbumShieldDesc')}
                     </p>
                   </div>
                   {albumScreenshotShield && (
                     <span className="metadata-badge badge-warning badge-sm album-shield-badge">
                       <ShieldAlert className="icon-xs" />
-                      {MSG.albumProtectionOn}
+                      {t('albumProtectionOn')}
                     </span>
                   )}
                 </div>
@@ -1028,7 +1024,7 @@ export default function ChatRoom({
                   {isShieldActive && (
                     <div className="album-shield-cover" role="status" aria-live="polite">
                       <ShieldAlert className="icon-xl text-rose u-animate-pulse" />
-                      <h5 className="shield-cover-title">{MSG.albumShieldTitle}</h5>
+                      <h5 className="shield-cover-title">{t('albumShieldTitle')}</h5>
                       <p className="shield-cover-desc">{shieldCoverDesc}</p>
                     </div>
                   )}
@@ -1094,7 +1090,7 @@ export default function ChatRoom({
               {/* E2EE packet log */}
               <div className="wire-header">
                 <Shield className="icon-md text-cyan" />
-                <h4 className="wire-title">{MSG.wireInspectorTitle}</h4>
+                <h4 className="wire-title">{t('wireInspectorTitle')}</h4>
               </div>
               
               {lastTransmittedPacket ? (
@@ -1109,11 +1105,11 @@ export default function ChatRoom({
                   </pre>
                   
                   <div className="warning-banner warning-banner--success">
-                    <p className="warning-banner-text">{MSG.wireInspectorNote}</p>
+                    <p className="warning-banner-text">{t('wireInspectorNote')}</p>
                   </div>
                 </div>
               ) : (
-                <p className="wire-empty">{MSG.wireInspectorEmpty}</p>
+                <p className="wire-empty">{t('wireInspectorEmpty')}</p>
               )}
 
               {/* Media Metadata Inspector */}
@@ -1121,7 +1117,7 @@ export default function ChatRoom({
                 <div className="exif-panel exif-panel--bordered">
                   <div className="wire-header wire-header--flat">
                     <Camera className="icon-md text-rose" />
-                    <h4 className="wire-title wire-title--rose">{MSG.photoInspectorTitle}</h4>
+                    <h4 className="wire-title wire-title--rose">{t('photoInspectorTitle')}</h4>
                   </div>
 
                   <div className="exif-meta-fields">
@@ -1152,7 +1148,7 @@ export default function ChatRoom({
                   </div>
 
                   <div className="warning-banner warning-banner--compact">
-                    <p className="warning-banner-text">{MSG.photoRisk}</p>
+                    <p className="warning-banner-text">{t('photoRisk')}</p>
                   </div>
 
                   <div className="exif-compress-bar">
@@ -1175,7 +1171,7 @@ export default function ChatRoom({
                     disabled={isStripping}
                     className="btn btn-secure btn-full btn-sm"
                   >
-                    {isStripping ? MSG.photoStripping : MSG.photoStripSend}
+                    {isStripping ? t('photoStripping') : t('photoStripSend')}
                   </button>
                 </div>
               )}

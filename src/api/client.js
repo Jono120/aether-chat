@@ -1,5 +1,6 @@
 import { loadSession, clearSession } from '../utils/authStorage.js';
 import { CLIENT_PLATFORM_HEADER, clientPlatformHeaderValue } from '../utils/platform.js';
+import { translateApiError } from '../i18n/apiErrors.js';
 
 const API_BASE = import.meta.env.VITE_API_URL ?? '';
 const DEV_USER_ID = import.meta.env.VITE_DEV_USER_ID ?? 'dev-user-1';
@@ -35,13 +36,14 @@ function authHeaders() {
 async function handleResponse(res) {
   if (res.status === 401) {
     clearSession();
-    onSessionExpired?.('Your session expired. Please sign in again.');
     const err = await res.json().catch(() => ({}));
-    throw new Error(err.error ?? 'Session expired');
+    const message = translateApiError(err.error ?? 'Session expired');
+    onSessionExpired?.(message);
+    throw new Error(message);
   }
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    throw new Error(err.error ?? `API ${res.status}`);
+    throw new Error(translateApiError(err.error ?? `API ${res.status}`));
   }
   return res.json();
 }
@@ -84,6 +86,16 @@ export async function fetchAuthConfig() {
   return publicRequest('/api/v1/auth/config');
 }
 
+export async function fetchMobileLinksConfig() {
+  if (!isApiEnabled()) return null;
+  return publicRequest('/api/v1/config/mobile-links');
+}
+
+export async function fetchLocaleConfig() {
+  if (!isApiEnabled()) return null;
+  return publicRequest('/api/v1/config/locale');
+}
+
 export async function loginWithGoogle(credential) {
   return publicRequest('/api/v1/auth/oauth/google', {
     method: 'POST',
@@ -120,7 +132,15 @@ async function request(path, options = {}) {
 
 export async function fetchNearbyProfiles() {
   const data = await request('/api/v1/profiles/nearby');
-  return data?.profiles ?? null;
+  if (!data) return null;
+  return {
+    profiles: Array.isArray(data.profiles) ? data.profiles : [],
+    totalNearby:
+      typeof data.totalNearby === 'number'
+        ? data.totalNearby
+        : (Array.isArray(data.profiles) ? data.profiles.length : 0),
+    filtersActive: Boolean(data.filtersActive),
+  };
 }
 
 export async function fetchMyProfile() {
@@ -232,6 +252,17 @@ export async function fetchDiscoveryPreferences() {
 
 export async function patchDiscoveryPreferences(payload) {
   return request('/api/v1/users/me/discovery-preferences', {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function fetchPrivacyPreferences() {
+  return request('/api/v1/users/me/privacy-preferences');
+}
+
+export async function patchPrivacyPreferences(payload) {
+  return request('/api/v1/users/me/privacy-preferences', {
     method: 'PATCH',
     body: JSON.stringify(payload),
   });

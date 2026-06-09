@@ -1,0 +1,80 @@
+default_platform(:android)
+
+def play_store_json_path
+  path = ENV.fetch("PLAY_STORE_JSON_PATH", File.join(Dir.tmpdir, "play-store-key.json"))
+  return path if File.exist?(path)
+
+  json = ENV["PLAY_STORE_SERVICE_ACCOUNT_JSON"]
+  UI.user_error!("PLAY_STORE_SERVICE_ACCOUNT_JSON or PLAY_STORE_JSON_PATH is required") if json.to_s.empty?
+
+  File.write(path, json)
+  path
+end
+
+def app_store_api_key
+  app_store_connect_api_key(
+    key_id: ENV.fetch("APP_STORE_CONNECT_API_KEY_ID"),
+    issuer_id: ENV.fetch("APP_STORE_CONNECT_API_ISSUER_ID"),
+    key_content: ENV.fetch("APP_STORE_CONNECT_API_KEY_CONTENT"),
+    is_key_content_base64: true
+  )
+end
+
+platform :android do
+  desc "Upload AAB to Play internal track"
+  lane :android_internal do
+    supply(
+      track: "internal",
+      aab: ENV.fetch("AAB_PATH", "../android/app/build/outputs/bundle/release/app-release.aab"),
+      json_key: play_store_json_path,
+      skip_upload_metadata: true,
+      skip_upload_images: true,
+      skip_upload_screenshots: true,
+      skip_upload_apk: true
+    )
+  end
+
+  desc "Upload AAB to Play production track"
+  lane :android_production do
+    supply(
+      track: "production",
+      rollout: ENV.fetch("ANDROID_ROLLOUT", "0.1"),
+      aab: ENV.fetch("AAB_PATH", "../android/app/build/outputs/bundle/release/app-release.aab"),
+      json_key: play_store_json_path,
+      skip_upload_metadata: true,
+      skip_upload_images: true,
+      skip_upload_screenshots: true,
+      skip_upload_apk: true
+    )
+  end
+end
+
+platform :ios do
+  desc "Upload IPA to TestFlight"
+  lane :ios_beta do
+    api_key = app_store_api_key
+    ipa = ENV.fetch("IPA_PATH")
+
+    pilot(
+      api_key: api_key,
+      ipa: ipa,
+      skip_waiting_for_build_processing: true
+    )
+  end
+
+  desc "Submit IPA for App Store review"
+  lane :ios_production do
+    api_key = app_store_api_key
+    ipa = ENV.fetch("IPA_PATH")
+
+    deliver(
+      api_key: api_key,
+      ipa: ipa,
+      submit_for_review: true,
+      automatic_release: false,
+      skip_metadata: true,
+      skip_screenshots: true,
+      force: true
+    )
+  end
+end

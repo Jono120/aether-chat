@@ -639,15 +639,103 @@ textarea:focus-visible,
 }
 
 .grid-filters-panel {
-  padding: 1rem;
   margin-bottom: 1rem;
-  border-radius: var(--radius-lg);
 }
 
-.discovery-filter-age-row {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
+.discovery-filters-card {
+  padding: 1rem;
+}
+
+.discovery-filters-card.privacy-card {
+  margin-bottom: 0;
+}
+
+.discovery-filters-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
   gap: 0.75rem;
+  border-bottom: 1px solid var(--glass-border);
+  padding-bottom: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.discovery-filters-header-title {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.discovery-filters-header-title .privacy-card-title {
+  margin: 0;
+  text-transform: none;
+  letter-spacing: normal;
+  font-size: 0.85rem;
+}
+
+.discovery-filters-active-count {
+  margin: 0.15rem 0 0;
+  font-size: 0.65rem;
+  color: var(--color-cyan);
+  font-weight: 600;
+}
+
+.discovery-filters-clear-btn {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.discovery-filters-body {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.discovery-filters-intro {
+  margin: 0;
+}
+
+.discovery-filters-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.discovery-filters-footer {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 0.25rem;
+  border-top: 1px solid var(--glass-border);
+}
+
+.discovery-filters-display {
+  margin-top: 1.25rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--glass-border);
+}
+
+.discovery-filters-display-header {
+  margin-bottom: 0.5rem;
+  padding-bottom: 0.5rem;
+}
+
+.discovery-filters-display .settings-row-desc {
+  margin-bottom: 0.75rem;
+}
+
+@media (max-width: 480px) {
+  .discovery-filters-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .discovery-filters-clear-btn {
+    width: 100%;
+    justify-content: center;
+  }
 }
 
 .web-album-blocked-cta {
@@ -657,6 +745,17 @@ textarea:focus-visible,
   margin-top: 0.5rem;
   font-size: 0.8rem;
   opacity: 0.9;
+}
+
+.web-album-store-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.web-album-store-links-primary {
+  border-color: var(--accent-cyan);
 }
 
 .discovery-grid {
@@ -1001,6 +1100,76 @@ textarea:focus-visible,
   border: 1px solid var(--panel-inset-border);
   padding: 0.5rem 0.75rem;
   border-radius: 6px;
+}
+
+.modal-social-section {
+  margin-bottom: 1rem;
+}
+
+.profile-social-fields {
+  display: grid;
+  gap: 0.75rem;
+}
+
+@media (min-width: 640px) {
+  .profile-social-fields {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.profile-social-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.profile-social-field-label {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.profile-social-links {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.profile-social-link {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.45rem 0.65rem;
+  border-radius: 6px;
+  border: 1px solid var(--panel-inset-border);
+  background-color: var(--panel-inset-bg);
+  color: var(--text-primary);
+  text-decoration: none;
+  font-size: 0.75rem;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+
+.profile-social-link:hover {
+  border-color: var(--accent-violet, #7c3aed);
+  background-color: color-mix(in srgb, var(--accent-violet, #7c3aed) 8%, var(--panel-inset-bg));
+}
+
+.profile-social-link-label {
+  font-weight: 600;
+  min-width: 5.5rem;
+}
+
+.profile-social-link-user {
+  flex: 1;
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.profile-social-link-icon {
+  flex-shrink: 0;
+  color: var(--text-secondary);
 }
 
 .modal-tags-list {
@@ -3383,6 +3552,26 @@ input:checked + .form-toggle-slider:before {
   .bottom-nav {
     display: none; /* Desktop uses the header navigation instead */
   }
+}
+
+/* Capacitor native shell — safe areas for notched devices */
+html.native-shell .bottom-nav {
+  padding-bottom: env(safe-area-inset-bottom, 0);
+  height: calc(4.5rem + env(safe-area-inset-bottom, 0));
+}
+
+html.native-shell .main-content {
+  padding-bottom: calc(4.5rem + env(safe-area-inset-bottom, 0));
+}
+
+@media (min-width: 768px) {
+  html.native-shell .main-content {
+    padding-bottom: 0;
+  }
+}
+
+html.native-shell .app-container {
+  min-height: 100dvh;
 }
 
 .nav-link {

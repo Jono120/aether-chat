@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Fingerprint } from 'lucide-react';
 import { useToast } from '../context/ToastContext';
-import { MSG } from '../utils/userMessages';
+import { useTranslation } from '../i18n/index.js';
 import {
   canUseBiometric,
   getAppSecurity,
@@ -10,14 +10,14 @@ import {
   setPinCode,
 } from '../utils/appSecurityStorage';
 
-const UNLOCK_METHODS = [
-  { id: 'pin', label: MSG.securityMethodPin, desc: MSG.securityMethodPinDesc },
-  { id: 'password', label: MSG.securityMethodPassword, desc: MSG.securityMethodPasswordDesc },
-  { id: 'biometric', label: MSG.securityMethodBiometric, desc: MSG.securityMethodBiometricDesc },
-];
-
 export default function AppSecuritySettings({ disabled, hasLocalPassword }) {
   const { toast } = useToast();
+  const { t } = useTranslation();
+  const unlockMethods = [
+    { id: 'pin', label: t('securityMethodPin'), desc: t('securityMethodPinDesc') },
+    { id: 'password', label: t('securityMethodPassword'), desc: t('securityMethodPasswordDesc') },
+    { id: 'biometric', label: t('securityMethodBiometric'), desc: t('securityMethodBiometricDesc') },
+  ];
   const [security, setSecurity] = useState(() => getAppSecurity());
   const [newPin, setNewPin] = useState('');
   const [confirmPin, setConfirmPin] = useState('');
@@ -31,27 +31,27 @@ export default function AppSecuritySettings({ disabled, hasLocalPassword }) {
 
   const handleSavePin = async () => {
     if (newPin !== confirmPin) {
-      toast(MSG.securityPinMismatch, { type: 'error' });
+      toast(t('securityPinMismatch'), { type: 'error' });
       return;
     }
     try {
       await setPinCode(newPin);
-      toast(MSG.securityPinSaved, { type: 'success' });
+      toast(t('securityPinSaved'), { type: 'success' });
       setNewPin('');
       setConfirmPin('');
       refresh();
     } catch (err) {
-      toast(err?.message ?? MSG.securityPinSaveFailed, { type: 'error' });
+      toast(err?.message ?? t('securityPinSaveFailed'), { type: 'error' });
     }
   };
 
   const handleBiometricSetup = async () => {
     try {
       await registerBiometric();
-      toast(MSG.securityBiometricSaved, { type: 'success' });
+      toast(t('securityBiometricSaved'), { type: 'success' });
       refresh();
     } catch (err) {
-      toast(err?.message ?? MSG.securityBiometricFailed, { type: 'error' });
+      toast(err?.message ?? t('securityBiometricFailed'), { type: 'error' });
     }
   };
 
@@ -59,8 +59,8 @@ export default function AppSecuritySettings({ disabled, hasLocalPassword }) {
     <div className="app-security-settings">
       <div className="settings-row settings-row--compact">
         <div>
-          <h4 className="settings-row-label">{MSG.settingsSensitiveLock}</h4>
-          <p className="settings-row-desc">{MSG.settingsSensitiveLockDesc}</p>
+          <h4 className="settings-row-label">{t('settingsSensitiveLock')}</h4>
+          <p className="settings-row-desc">{t('settingsSensitiveLockDesc')}</p>
         </div>
         <label className="form-toggle">
           <input
@@ -75,9 +75,9 @@ export default function AppSecuritySettings({ disabled, hasLocalPassword }) {
 
       {security.lockEnabled && (
         <>
-          <span className="section-label">{MSG.securityUnlockMethodLabel}</span>
+          <span className="section-label">{t('securityUnlockMethodLabel')}</span>
           <div className="strategy-list">
-            {UNLOCK_METHODS.map((m) => {
+            {unlockMethods.map((m) => {
               const disabledBio = m.id === 'biometric' && !canUseBiometric();
               const disabledPw = m.id === 'password' && !hasLocalPassword;
               if (disabledBio || disabledPw) return null;
@@ -105,7 +105,7 @@ export default function AppSecuritySettings({ disabled, hasLocalPassword }) {
           {security.unlockMethod === 'pin' && (
             <div className="app-security-pin-form">
               <label className="profile-field">
-                <span className="profile-field-label">{MSG.securitySetPin}</span>
+                <span className="profile-field-label">{t('securitySetPin')}</span>
                 <input
                   type="password"
                   inputMode="numeric"
@@ -115,7 +115,7 @@ export default function AppSecuritySettings({ disabled, hasLocalPassword }) {
                 />
               </label>
               <label className="profile-field">
-                <span className="profile-field-label">{MSG.securityConfirmPin}</span>
+                <span className="profile-field-label">{t('securityConfirmPin')}</span>
                 <input
                   type="password"
                   inputMode="numeric"
@@ -130,7 +130,7 @@ export default function AppSecuritySettings({ disabled, hasLocalPassword }) {
                 disabled={disabled || newPin.length < 4}
                 onClick={handleSavePin}
               >
-                {MSG.securitySavePin}
+                {t('securitySavePin')}
               </button>
             </div>
           )}
@@ -143,12 +143,12 @@ export default function AppSecuritySettings({ disabled, hasLocalPassword }) {
               onClick={handleBiometricSetup}
             >
               <Fingerprint className="icon-sm" />
-              {MSG.securitySetupBiometric}
+              {t('securitySetupBiometric')}
             </button>
           )}
 
           {security.unlockMethod === 'password' && !hasLocalPassword && (
-            <p className="settings-row-desc">{MSG.securityPasswordOnlyLocal}</p>
+            <p className="settings-row-desc">{t('securityPasswordOnlyLocal')}</p>
           )}
         </>
       )}

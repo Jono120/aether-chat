@@ -45,6 +45,6 @@ resource "azurerm_container_registry" "api" {
   resource_group_name = azurerm_resource_group.app.name
   location            = var.location
   sku                 = "Basic"
-  admin_enabled       = true
+  admin_enabled       = false
   tags                = local.common_tags
 }

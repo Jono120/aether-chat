@@ -63,7 +63,7 @@ Operators must not log or index decrypted content — there is none server-side.
 | Blob path, content-type, expiry | Yes | Blob bytes are client-encrypted optional |
 | Private keys | **No** | Must never appear in DB or logs |
 
-See [BACKEND.md](BACKEND.md) and [DATA_MODEL.md](DATA_MODEL.md).
+See [BACKEND.md](BACKEND.md).
 
 ---
 

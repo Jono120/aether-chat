@@ -11,6 +11,10 @@ import {
   patchDiscoveryPreferences,
 } from '../services/discoveryPreferences.js';
 import {
+  getPrivacyPreferences,
+  patchPrivacyPreferences,
+} from '../services/privacyPreferences.js';
+import {
   getReadReceiptsPreference,
   setReadReceiptsPreference,
 } from '../services/readReceipts.js';
@@ -81,6 +85,24 @@ usersRouter.patch('/me/discovery-preferences', requireAuth, async (req, res) => 
     res.json(prefs);
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Invalid discovery preferences';
+    res.status(400).json({ error: message });
+  }
+});
+
+usersRouter.get('/me/privacy-preferences', requireAuth, async (req, res) => {
+  const prefs = await getPrivacyPreferences(req.authUser!.id);
+  res.json(prefs);
+});
+
+usersRouter.patch('/me/privacy-preferences', requireAuth, async (req, res) => {
+  try {
+    const prefs = await patchPrivacyPreferences(req.authUser!.id, {
+      fuzzingStrategy: req.body?.fuzzingStrategy,
+      albumShieldEnabled: req.body?.albumShieldEnabled,
+    });
+    res.json(prefs);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Invalid privacy preferences';
     res.status(400).json({ error: message });
   }
 });

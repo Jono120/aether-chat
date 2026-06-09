@@ -13,32 +13,42 @@ flowchart TB
   subgraph github [GitHub]
     PR[Pull request]
     Main[main branch]
+    Tag[mobile-v tag]
   end
   subgraph gha [GitHub Actions]
-    CI[ci.yml lint and build]
+    CI[ci.yml lint build and mobile compile]
     TF[terraform.yml plan or apply]
     Deploy[deploy-app.yml upload dist]
+    Mobile[deploy-mobile.yml signed release]
   end
   subgraph azure [Azure]
     RG[Resource group]
     SWA[Static Web App]
     State[Storage account Terraform state]
   end
+  subgraph stores [App stores]
+    Play[Google Play]
+    ASC[App Store Connect]
+  end
   PR --> CI
   PR --> TF
   Main --> TF
   Main --> Deploy
+  Tag --> Mobile
   TF --> State
   TF --> RG
   TF --> SWA
   Deploy --> SWA
+  Mobile --> Play
+  Mobile --> ASC
 ```
 
 | Workflow | Trigger | Auth | Purpose |
 |----------|---------|------|---------|
-| `ci.yml` | PR + push to `main` | None | Lint, build, upload `dist` artifact |
+| `ci.yml` | PR + push to `main` | None | Lint, build web + API; Android debug + iOS simulator when mobile paths change |
 | `terraform.yml` | PR/push when `infra/**` changes | Azure OIDC | Plan (PR) / apply (`main`) |
 | `deploy-app.yml` | Push to `main` (app paths) | SWA deployment token | Build and publish `dist/` |
+| `deploy-mobile.yml` | `workflow_dispatch` or tag `mobile-v*` | Store signing secrets | Signed AAB/IPA + Fastlane upload |
 
 ---
 
@@ -93,6 +103,11 @@ Creates federated credentials for:
 | `TFSTATE_STORAGE_ACCOUNT` | Manual (from bootstrap) | `staethertfabc12345` |
 | `TFSTATE_CONTAINER` | Manual | `tfstate` |
 | `TF_PROJECT_NAME` | Manual | `aether` |
+| `VITE_API_URL` | Manual (after backend apply) | `https://api.example.com` |
+| `VITE_SIGNALR_URL` | Manual | Azure SignalR hub URL |
+| `VITE_IOS_APP_STORE_URL` | Manual (after App Store listing) | `https://apps.apple.com/app/id…` |
+| `VITE_ANDROID_PLAY_STORE_URL` | Manual (after Play listing) | `https://play.google.com/store/apps/details?id=com.aether.app` |
+| `APPLE_TEAM_ID` | Manual | Apple Developer team ID (mobile iOS signing) |
 
 **Secrets:**
 
@@ -173,6 +188,8 @@ For a demo prototype, **dev only** is sufficient; keep `prod.tfvars` for later.
 | 4 | `deploy-app.yml` publishes `dist/`; Grid loads at SWA URL |
 | 5 | Deep link refresh works (`navigationFallback` in `staticwebapp.config.json`) |
 | 6 | Response includes `X-Content-Type-Options` and `Referrer-Policy` headers |
+| 7 | `ci.yml` Android debug job passes when `mobile/**` changes |
+| 8 | `ci.yml` iOS simulator job passes on `macos-latest` when `mobile/**` changes |
 
 ---
 
@@ -201,6 +218,80 @@ Point the SPA at the API: `VITE_API_URL=https://<api_fqdn>` in the deploy workfl
 
 ---
 
+## Mobile CI and release
+
+Capacitor native projects live under `mobile/android/` and `mobile/ios/` (committed; synced web assets are gitignored). CI builds the SPA once, runs `cap sync`, then compiles Android debug and an iOS simulator build when mobile-related paths change.
+
+### CI (`ci.yml`)
+
+| Job | Runner | Purpose |
+|-----|--------|---------|
+| `build-mobile-spa` | `ubuntu-latest` | Reuses `dist/` artifact, `cap sync`, uploads mobile SPA artifact |
+| `android` | `ubuntu-latest` | `./gradlew assembleDebug` |
+| `ios` | `macos-latest` | `pod install` + simulator build (`App` scheme) |
+
+Path filter: `src/**`, `mobile/**`, root/mobile lockfiles, `scripts/mobile-*.mjs`.
+
+### Mobile release (`deploy-mobile.yml`)
+
+Decoupled from every `main` push. Triggers:
+
+- **Manual:** Actions → Deploy mobile (`platform`, `channel`, optional `version`)
+- **Tag:** `mobile-v*` (e.g. `mobile-v0.1.0`) → Play **internal** + TestFlight
+
+| GitHub environment | Channels | Approval |
+|--------------------|----------|----------|
+| `mobile-staging` | Play internal, TestFlight | None |
+| `mobile-production` | Play production, App Store review | Required reviewer(s) |
+
+Promotion flow: dispatch `channel=internal` or push a tag → QA on devices → dispatch `channel=production` (requires `mobile-production` approval).
+
+### GitHub secrets (mobile)
+
+| Secret | Platform | Purpose |
+|--------|----------|---------|
+| `ANDROID_KEYSTORE_BASE64` | Android | Release keystore (base64) |
+| `ANDROID_KEYSTORE_PASSWORD` | Android | Keystore password |
+| `ANDROID_KEY_ALIAS` | Android | Key alias |
+| `ANDROID_KEY_PASSWORD` | Android | Key password |
+| `PLAY_STORE_SERVICE_ACCOUNT_JSON` | Android | Play Developer API service account JSON |
+| `APP_STORE_CONNECT_API_KEY_ID` | iOS | App Store Connect API key ID |
+| `APP_STORE_CONNECT_API_ISSUER_ID` | iOS | API issuer ID |
+| `APP_STORE_CONNECT_API_KEY_CONTENT` | iOS | Base64-encoded `.p8` key |
+
+Android signing env vars are read in `mobile/android/app/build.gradle`. CI decodes the keystore to `$RUNNER_TEMP/keystore.jks`.
+
+### One-time store setup
+
+**Google Play Console**
+
+1. Create app `com.aether.app`
+2. Enable Play App Signing
+3. Upload the first AAB manually if the API rejects uploads before the app record exists
+4. Create a service account with Release Manager permissions; store JSON as `PLAY_STORE_SERVICE_ACCOUNT_JSON`
+
+**Apple App Store Connect**
+
+1. Register bundle ID `com.aether.app`
+2. Create the app record
+3. Generate an App Store Connect API key (Admin or App Manager)
+4. Set `APPLE_TEAM_ID` variable; configure signing in Xcode once locally — CI uses automatic signing with `-allowProvisioningUpdates`
+
+**Versioning:** `versionCode` / build number from `github.run_number`; `versionName` from the workflow input, tag (`mobile-v*`), or `mobile/package.json`.
+
+Fastlane lanes in `mobile/fastlane/`: `android_internal`, `android_production` (10% rollout default), `ios_beta`, `ios_production`.
+
+See [mobile/README.md](../mobile/README.md) for local Fastlane dry-runs.
+
+### Mobile out of scope (by design)
+
+| Topic | Status |
+|-------|--------|
+| **Terraform for mobile** | No Azure resources — Play and App Store are external; infrastructure stays in `infra/` for SWA/API only |
+| **Signing via Azure Key Vault** | Future hardening — release signing uses GitHub Secrets today; Key Vault integration can replace keystore/API key storage later |
+
+---
+
 ## Demo-only deploy (Phase 1 — no backend)
 
 Use this when you only need a shareable HTTPS demo with **no** PostgreSQL or Container Apps cost.
@@ -215,11 +306,23 @@ Optional: add `public/favicon.svg` is bundled automatically from `public/`.
 
 ---
 
+## Environment tiers
+
+| Environment | tfvars | State key | Notes |
+|-------------|--------|-----------|-------|
+| Dev | `infra/environments/dev.tfvars` | `{project}-dev.terraform.tfstate` | Public PG with IP firewall; inline Container App secrets OK |
+| Staging | `infra/environments/staging.tfvars` | `{project}-staging.terraform.tfstate` | Prod-parity: KV refs, Redis, VNet, private endpoints |
+| Prod | `infra/environments/prod.tfvars` | `{project}-prod.terraform.tfstate` | WAF, full isolation, GitHub `production` environment gate |
+
+See [SECURITY_ARCHITECTURE.md](SECURITY_ARCHITECTURE.md) for control matrix per tier.
+
+---
+
 ## Full stack deploy (Phase 2)
 
 1. Set `TF_VAR_postgres_admin_password` and apply Terraform with `enable_backend = true`.
 2. Note outputs: `api_url`, `container_registry_login_server`, `static_web_app_url`.
-3. Configure GitHub secrets for `deploy-api.yml`: `ACR_NAME`, `ACR_LOGIN_SERVER`, `CONTAINER_APP_NAME`, `AZURE_RESOURCE_GROUP`, plus Azure OIDC vars.
+3. Configure GitHub **variables** for `deploy-api.yml`: `ACR_NAME`, `ACR_LOGIN_SERVER`, `CONTAINER_APP_NAME`, `AZURE_RESOURCE_GROUP`, plus Azure OIDC vars (`AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID`) — same as `terraform.yml`.
 4. Set repository variable `VITE_API_URL` to the `api_url` output for `deploy-app.yml`.
 5. Push API changes — `deploy-api.yml` builds Docker image, pushes to ACR, updates Container App (migrations run on container start).
 
@@ -229,6 +332,6 @@ Optional: add `public/favicon.svg` is bundled automatically from `public/`.
 
 - [infra/README.md](../infra/README.md) — Terraform layout and bootstrap scripts
 - [BACKEND.md](BACKEND.md) — API catalogue and E2EE boundaries
-- [DATA_MODEL.md](DATA_MODEL.md) — PostgreSQL schema
+- [BACKEND.md](BACKEND.md) — PostgreSQL schema
 - [DEVELOPMENT.md](DEVELOPMENT.md) — Local API + SPA development
 - [ARCHITECTURE.md](ARCHITECTURE.md) — Application architecture

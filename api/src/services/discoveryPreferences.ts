@@ -29,11 +29,11 @@ const DEFAULT_VIEW_PREFS: ProfileViewPrefs = {
   showLookingFor: true,
 };
 
-function normalizeFilters(raw: unknown): DiscoveryFilters {
+export function normalizeDiscoveryFilters(raw: unknown): DiscoveryFilters {
   if (!raw || typeof raw !== 'object') return { ...DEFAULT_FILTERS };
   const obj = raw as Record<string, unknown>;
-  const ageMin = obj.ageMin != null ? Number(obj.ageMin) : null;
-  const ageMax = obj.ageMax != null ? Number(obj.ageMax) : null;
+  const ageMinRaw = obj.ageMin != null ? Number(obj.ageMin) : null;
+  const ageMaxRaw = obj.ageMax != null ? Number(obj.ageMax) : null;
   const genders = Array.isArray(obj.genders)
     ? obj.genders.filter((g): g is string => typeof g === 'string')
     : [];
@@ -41,9 +41,14 @@ function normalizeFilters(raw: unknown): DiscoveryFilters {
     ? obj.interests.filter((i): i is string => typeof i === 'string')
     : [];
   const interestMatch = obj.interestMatch === 'all' ? 'all' : 'any';
+  const ageMin = Number.isFinite(ageMinRaw) ? ageMinRaw : null;
+  let ageMax = Number.isFinite(ageMaxRaw) ? ageMaxRaw : null;
+  if (ageMin != null && ageMax != null && ageMax < ageMin) {
+    ageMax = ageMin;
+  }
   return {
-    ageMin: Number.isFinite(ageMin) ? ageMin : null,
-    ageMax: Number.isFinite(ageMax) ? ageMax : null,
+    ageMin,
+    ageMax,
     genders,
     interests,
     interestMatch,
@@ -105,7 +110,7 @@ export async function getDiscoveryPreferences(userId: string): Promise<Discovery
   );
   const row = result.rows[0];
   return {
-    discoveryFilters: normalizeFilters(row?.discovery_filters),
+    discoveryFilters: normalizeDiscoveryFilters(row?.discovery_filters),
     profileViewPrefs: normalizeViewPrefs(row?.profile_view_prefs),
   };
 }
@@ -119,9 +124,11 @@ export async function patchDiscoveryPreferences(
 ): Promise<DiscoveryPreferencesDto> {
   const current = await getDiscoveryPreferences(userId);
 
-  const nextFilters = input.discoveryFilters
-    ? { ...current.discoveryFilters, ...input.discoveryFilters }
-    : current.discoveryFilters;
+  const nextFilters = normalizeDiscoveryFilters(
+    input.discoveryFilters
+      ? { ...current.discoveryFilters, ...input.discoveryFilters }
+      : current.discoveryFilters,
+  );
   const nextViewPrefs = input.profileViewPrefs
     ? { ...current.profileViewPrefs, ...input.profileViewPrefs }
     : current.profileViewPrefs;

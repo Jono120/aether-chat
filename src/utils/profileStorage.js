@@ -1,4 +1,5 @@
 import { mergeInterests, splitInterests } from './profileOptions.js';
+import { formToSocialLinks, socialLinksToForm } from './socialLinks.js';
 
 const PROFILE_KEY = 'aether_user_profile';
 const MEDIA_PREFIX = 'aether_media_preview_';
@@ -21,6 +22,7 @@ export const DEFAULT_LOCAL_PROFILE = {
   allowProfileMediaUpload: true,
   allowAlbumMediaUpload: true,
   avatarMediaId: null,
+  socialLinks: {},
 };
 
 export function loadLocalProfile() {
@@ -70,6 +72,7 @@ export function profileToForm(profile) {
     allowProfileMediaUpload: profile.allowProfileMediaUpload !== false,
     allowAlbumMediaUpload: profile.allowAlbumMediaUpload !== false,
     avatarMediaId: profile.avatarMediaId ?? null,
+    socialLinks: socialLinksToForm(profile.socialLinks),
   };
 }
 
@@ -95,6 +98,7 @@ export function formToProfile(form, existing = {}) {
     avatarMediaId: form.avatarMediaId,
     pattern: existing.pattern ?? 1,
     fuzzedDistance: existing.fuzzedDistance ?? 'Nearby',
+    socialLinks: formToSocialLinks(form.socialLinks),
   };
 }
 
@@ -114,5 +118,6 @@ export function profileToApiPayload(profile) {
     avatarMediaId: profile.avatarMediaId,
     allowProfileMediaUpload: profile.allowProfileMediaUpload,
     allowAlbumMediaUpload: profile.allowAlbumMediaUpload,
+    socialLinks: profile.socialLinks ?? {},
   };
 }

@@ -1,15 +1,16 @@
 import React, { useState } from 'react';
 import { confirmAge } from '../utils/ageGateStorage';
 import LegalLinks from './LegalLinks';
-import { MSG } from '../utils/userMessages';
+import { useTranslation } from '../i18n/index.js';
 
 export default function AgeGate({ onConfirmed }) {
+  const { t } = useTranslation();
   const [denied, setDenied] = useState(false);
 
   if (denied) {
     return (
       <div className="app-container" style={{ padding: '2rem' }}>
-        <p>{MSG.ageGateDenied}</p>
+        <p>{t('ageGateDenied')}</p>
       </div>
     );
   }
@@ -17,9 +18,9 @@ export default function AgeGate({ onConfirmed }) {
   return (
     <div className="app-container app-container--auth">
       <div className="auth-card glass-panel">
-        <h1 className="auth-title">{MSG.ageGateTitle}</h1>
-        <p className="auth-subtitle">{MSG.ageGateSubtitle}</p>
-        <p className="age-gate-legal-note">{MSG.ageGateLegalNote}</p>
+        <h1 className="auth-title">{t('ageGateTitle')}</h1>
+        <p className="auth-subtitle">{t('ageGateSubtitle')}</p>
+        <p className="age-gate-legal-note">{t('ageGateLegalNote')}</p>
         <LegalLinks className="auth-legal-links" />
         <div className="auth-form">
           <button
@@ -30,10 +31,10 @@ export default function AgeGate({ onConfirmed }) {
               onConfirmed?.();
             }}
           >
-            {MSG.ageGateConfirm}
+            {t('ageGateConfirm')}
           </button>
           <button type="button" className="btn btn-secondary" onClick={() => setDenied(true)}>
-            {MSG.ageGateDeny}
+            {t('ageGateDeny')}
           </button>
         </div>
       </div>

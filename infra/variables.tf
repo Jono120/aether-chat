@@ -100,3 +100,45 @@ variable "media_retention_days" {
   type        = number
   default     = 7
 }
+
+variable "enable_network_isolation" {
+  description = "Provision VNet, private endpoints, and VNet-integrated Container Apps."
+  type        = bool
+  default     = false
+}
+
+variable "enable_edge_waf" {
+  description = "Provision Azure Front Door Premium with WAF in front of the API."
+  type        = bool
+  default     = false
+}
+
+variable "enable_apim" {
+  description = "Optional API Management instance for throttling and versioning."
+  type        = bool
+  default     = false
+}
+
+variable "api_custom_domains" {
+  description = "Custom domain names for Front Door (prod)."
+  type        = list(string)
+  default     = []
+}
+
+variable "use_key_vault_secret_refs" {
+  description = "Container Apps pull secrets via managed identity + Key Vault references (recommended staging/prod)."
+  type        = bool
+  default     = false
+}
+
+variable "postgres_allowed_ip_addresses" {
+  description = "Explicit IP allowlist for PostgreSQL firewall (dev). Empty disables team IP rules."
+  type        = map(string)
+  default     = {}
+}
+
+variable "postgres_allow_azure_services" {
+  description = "Allow Azure services PostgreSQL firewall rule."
+  type        = bool
+  default     = true
+}

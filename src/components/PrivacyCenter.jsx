@@ -40,68 +40,68 @@ import DiscoveryFilterControls from './DiscoveryFilterControls';
 import EncryptionTipsModal from './EncryptionTipsModal';
 import { isWebBrowser } from '../utils/platform';
 import ChatBackupPanel from './ChatBackupPanel';
-import { MSG } from '../utils/userMessages';
+import { useTranslation } from '../i18n/index.js';
 import { SELF_DESTRUCT_OPTIONS } from '../utils/messagingStorage';
 
-const MSG_TIMER_LABELS = {
-  0: MSG.settingsMsgTimerOff,
-  10: MSG.settingsMsgTimer10s,
-  60: MSG.settingsMsgTimer1m,
-  3600: MSG.settingsMsgTimer1h,
-};
+const getMessagingTimerLabels = (t) => ({
+  0: t('settingsMsgTimerOff'),
+  10: t('settingsMsgTimer10s'),
+  60: t('settingsMsgTimer1m'),
+  3600: t('settingsMsgTimer1h'),
+});
 
-const MESSAGING_PLANNED = [MSG.settingsMsgPlannedLinks];
+const getMessagingPlanned = (t) => [t('settingsMsgPlannedLinks')];
 
-const ACCOUNT_PLANNED = [
-  MSG.settingsAccountPlannedExport,
-  MSG.settingsAccountPlannedSessions,
-  MSG.settingsAccountPlannedLinked,
-  MSG.settingsAccountPlannedEmail,
+const getAccountPlanned = (t) => [
+  t('settingsAccountPlannedExport'),
+  t('settingsAccountPlannedSessions'),
+  t('settingsAccountPlannedLinked'),
+  t('settingsAccountPlannedEmail'),
 ];
 
-const SETTINGS_SECTIONS = [
-  { id: 'discovery', label: MSG.settingsNavDiscovery, icon: Eye },
-  { id: 'messaging', label: MSG.settingsNavMessaging, icon: MessageCircle },
-  { id: 'security', label: MSG.settingsNavSecurity, icon: Smartphone },
-  { id: 'accessibility', label: MSG.settingsNavAccessibility, icon: Accessibility },
-  { id: 'account', label: MSG.settingsNavAccount, icon: Trash2 },
-  { id: 'legal', label: MSG.settingsNavLegal, icon: FileText },
-  { id: 'diagnostics', label: MSG.settingsNavDiagnostics, icon: HelpCircle },
+const getSettingsSections = (t) => [
+  { id: 'discovery', label: t('settingsNavDiscovery'), icon: Eye },
+  { id: 'messaging', label: t('settingsNavMessaging'), icon: MessageCircle },
+  { id: 'security', label: t('settingsNavSecurity'), icon: Smartphone },
+  { id: 'accessibility', label: t('settingsNavAccessibility'), icon: Accessibility },
+  { id: 'account', label: t('settingsNavAccount'), icon: Trash2 },
+  { id: 'legal', label: t('settingsNavLegal'), icon: FileText },
+  { id: 'diagnostics', label: t('settingsNavDiagnostics'), icon: HelpCircle },
 ];
 
-const TEXT_SIZE_STRATEGIES = [
+const getTextSizeStrategies = (t) => [
   {
     id: 'default',
-    label: MSG.settingsTextSizeDefault,
-    desc: MSG.settingsTextSizeDefaultDesc,
+    label: t('settingsTextSizeDefault'),
+    desc: t('settingsTextSizeDefaultDesc'),
   },
   {
     id: 'large',
-    label: MSG.settingsTextSizeLarge,
-    desc: MSG.settingsTextSizeLargeDesc,
+    label: t('settingsTextSizeLarge'),
+    desc: t('settingsTextSizeLargeDesc'),
   },
   {
     id: 'extra',
-    label: MSG.settingsTextSizeExtra,
-    desc: MSG.settingsTextSizeExtraDesc,
+    label: t('settingsTextSizeExtra'),
+    desc: t('settingsTextSizeExtraDesc'),
   },
 ];
 
-const DISTANCE_STRATEGIES = [
+const getDistanceStrategies = (t) => [
   {
     id: 'grid_snap',
-    label: MSG.settingsDistanceGrid,
-    desc: MSG.settingsDistanceGridDesc,
+    label: t('settingsDistanceGrid'),
+    desc: t('settingsDistanceGridDesc'),
   },
   {
     id: 'jitter',
-    label: MSG.settingsDistanceJitter,
-    desc: MSG.settingsDistanceJitterDesc,
+    label: t('settingsDistanceJitter'),
+    desc: t('settingsDistanceJitterDesc'),
   },
   {
     id: 'distance_only',
-    label: MSG.settingsDistanceBands,
-    desc: MSG.settingsDistanceBandsDesc,
+    label: t('settingsDistanceBands'),
+    desc: t('settingsDistanceBandsDesc'),
   },
 ];
 
@@ -114,8 +114,8 @@ export default function PrivacyCenter({
   onPanicTrigger,
   currentUser,
   generateNewKeys,
-  albumScreenshotShield,
-  setAlbumScreenshotShield,
+  privacyPrefs,
+  onPrivacyPrefsChange,
   accessibility,
   onAccessibilityChange,
   messagingPrefs,
@@ -126,8 +126,14 @@ export default function PrivacyCenter({
   onChatBackupRestore,
 }) {
   const { toast, confirm } = useToast();
+  const { t } = useTranslation();
+  const MSG_TIMER_LABELS = getMessagingTimerLabels(t);
+  const MESSAGING_PLANNED = getMessagingPlanned(t);
+  const ACCOUNT_PLANNED = getAccountPlanned(t);
+  const SETTINGS_SECTIONS = getSettingsSections(t);
+  const TEXT_SIZE_STRATEGIES = getTextSizeStrategies(t);
+  const DISTANCE_STRATEGIES = getDistanceStrategies(t);
   const [activeSection, setActiveSection] = useState('discovery');
-  const [fuzzingStrategy, setFuzzingStrategy] = useState('grid_snap');
   const [sensitiveUnlocked, setSensitiveUnlocked] = useState(() => isSensitiveUnlocked());
   const [isDeleting, setIsDeleting] = useState(false);
   const [deletionTimer, setDeletionTimer] = useState(null);
@@ -192,9 +198,9 @@ export default function PrivacyCenter({
   };
 
   const requestAccountDeletion = async () => {
-    const approved = await confirm(MSG.settingsDeleteConfirm, {
-      confirmLabel: MSG.settingsDeleteConfirmBtn,
-      cancelLabel: MSG.settingsDeleteCancelBtn,
+    const approved = await confirm(t('settingsDeleteConfirm'), {
+      confirmLabel: t('settingsDeleteConfirmBtn'),
+      cancelLabel: t('settingsDeleteCancelBtn'),
     });
     if (!approved) return;
 
@@ -223,7 +229,7 @@ export default function PrivacyCenter({
       calculateTimeRemaining(scheduledDate.toISOString());
     }
 
-    toast(MSG.accountDeletionScheduled, { type: 'info' });
+    toast(t('accountDeletionScheduled'), { type: 'info' });
   };
 
   const cancelAccountDeletionLocal = async () => {
@@ -238,13 +244,13 @@ export default function PrivacyCenter({
     setIsDeleting(false);
     setDeletionTimer(null);
     setStealthMode(false);
-    toast(MSG.accountDeletionCancelled, { type: 'success' });
+    toast(t('accountDeletionCancelled'), { type: 'success' });
   };
 
   const handleDeviceWipe = async () => {
-    const approved = await confirm(MSG.settingsWipeConfirm, {
-      confirmLabel: MSG.settingsWipeConfirmBtn,
-      cancelLabel: MSG.cancel,
+    const approved = await confirm(t('settingsWipeConfirm'), {
+      confirmLabel: t('settingsWipeConfirmBtn'),
+      cancelLabel: t('cancel'),
     });
     if (approved) onPanicTrigger();
   };
@@ -252,12 +258,12 @@ export default function PrivacyCenter({
   const renderPlannedRoadmap = (title, items) => (
     <div className="settings-roadmap">
       <span className="section-label">{title}</span>
-      <p className="settings-roadmap-note">{MSG.settingsPlannedNote}</p>
+      <p className="settings-roadmap-note">{t('settingsPlannedNote')}</p>
       <ul className="settings-roadmap-list">
         {items.map((text) => (
           <li key={text} className="settings-roadmap-item">
             <span>{text}</span>
-            <span className="metadata-badge settings-planned-badge">{MSG.settingsPlannedBadge}</span>
+            <span className="metadata-badge settings-planned-badge">{t('settingsPlannedBadge')}</span>
           </li>
         ))}
       </ul>
@@ -276,13 +282,13 @@ export default function PrivacyCenter({
 
   const renderDiscovery = () => (
     <div className="settings-panel-inner">
-      {renderSectionHeader(Eye, MSG.settingsDiscoveryTitle, MSG.settingsDiscoveryDesc, 'text-violet')}
+      {renderSectionHeader(Eye, t('settingsDiscoveryTitle'), t('settingsDiscoveryDesc'), 'text-violet')}
       <DiscoveryTutorial onNavigateTab={onNavigateTab} disabled={isDeleting} />
       <div className="settings-stack">
         <div className="settings-row">
           <div>
-            <h4 className="settings-row-label">{MSG.settingsShowOnGrid}</h4>
-            <p className="settings-row-desc">{MSG.settingsShowOnGridDesc}</p>
+            <h4 className="settings-row-label">{t('settingsShowOnGrid')}</h4>
+            <p className="settings-row-desc">{t('settingsShowOnGridDesc')}</p>
           </div>
           <label className="form-toggle">
             <input
@@ -296,17 +302,20 @@ export default function PrivacyCenter({
         </div>
 
         <div className="u-flex-col u-gap-sm">
-          <span className="section-label">{MSG.settingsDistanceLabel}</span>
+          <span className="section-label">{t('settingsDistanceLabel')}</span>
           <div className="strategy-list">
             {DISTANCE_STRATEGIES.map((strategy) => (
               <div
                 key={strategy.id}
-                onClick={() => !isDeleting && setFuzzingStrategy(strategy.id)}
-                className={`strategy-option ${fuzzingStrategy === strategy.id ? 'strategy-option-active' : ''}`}
+                onClick={() =>
+                  !isDeleting &&
+                  onPrivacyPrefsChange?.({ fuzzingStrategy: strategy.id })
+                }
+                className={`strategy-option ${privacyPrefs?.fuzzingStrategy === strategy.id ? 'strategy-option-active' : ''}`}
               >
                 <input
                   type="radio"
-                  checked={fuzzingStrategy === strategy.id}
+                  checked={privacyPrefs?.fuzzingStrategy === strategy.id}
                   onChange={() => {}}
                   className="strategy-radio"
                   disabled={isDeleting}
@@ -318,6 +327,7 @@ export default function PrivacyCenter({
               </div>
             ))}
           </div>
+          <p className="settings-row-desc">{t('settingsDistanceAppliedNote')}</p>
         </div>
 
         {discoveryPrefs && onDiscoveryPrefsChange && (
@@ -351,12 +361,12 @@ export default function PrivacyCenter({
 
   const renderMessaging = () => (
     <div className="settings-panel-inner">
-      {renderSectionHeader(Lock, MSG.settingsMessagingTitle, MSG.settingsMessagingDesc, 'text-cyan')}
+      {renderSectionHeader(Lock, t('settingsMessagingTitle'), t('settingsMessagingDesc'), 'text-cyan')}
       <div className="settings-stack">
         <div className="settings-info-box settings-info-box--row">
           <div>
-            <h4 className="settings-info-box-title">{MSG.settingsMsgEncryptionTitle}</h4>
-            <p className="settings-info-box-text">{MSG.settingsMsgEncryptionBody}</p>
+            <h4 className="settings-info-box-title">{t('settingsMsgEncryptionTitle')}</h4>
+            <p className="settings-info-box-text">{t('settingsMsgEncryptionBody')}</p>
           </div>
           <button
             type="button"
@@ -365,14 +375,14 @@ export default function PrivacyCenter({
             disabled={isDeleting}
           >
             <Lock className="icon-sm" />
-            {MSG.settingsMsgEncryptionModalBtn}
+            {t('settingsMsgEncryptionModalBtn')}
           </button>
         </div>
 
         <div className="u-flex-col u-gap-sm">
-          <span className="section-label">{MSG.settingsMsgDefaultTimer}</span>
+          <span className="section-label">{t('settingsMsgDefaultTimer')}</span>
           <p className="settings-row-desc settings-row-desc--flush">
-            {MSG.settingsMsgDefaultTimerDesc}
+            {t('settingsMsgDefaultTimerDesc')}
           </p>
           <div className="destruct-timing-bar destruct-timing-bar--settings">
             {SELF_DESTRUCT_OPTIONS.map((opt) => (
@@ -395,8 +405,8 @@ export default function PrivacyCenter({
 
         <div className="settings-row settings-row--compact">
           <div>
-            <h4 className="settings-row-label">{MSG.settingsReadReceipts}</h4>
-            <p className="settings-row-desc">{MSG.settingsReadReceiptsDesc}</p>
+            <h4 className="settings-row-label">{t('settingsReadReceipts')}</h4>
+            <p className="settings-row-desc">{t('settingsReadReceiptsDesc')}</p>
           </div>
           <label className="form-toggle">
             <input
@@ -413,7 +423,7 @@ export default function PrivacyCenter({
 
         <ChatBackupPanel disabled={isDeleting} onRestore={onChatBackupRestore} />
 
-        {renderPlannedRoadmap(MSG.settingsPlannedTitle, MESSAGING_PLANNED)}
+        {renderPlannedRoadmap(t('settingsPlannedTitle'), MESSAGING_PLANNED)}
       </div>
       <EncryptionTipsModal open={encryptionTipsOpen} onClose={() => setEncryptionTipsOpen(false)} />
     </div>
@@ -424,22 +434,26 @@ export default function PrivacyCenter({
 
   const renderSecurity = () => (
     <div className="settings-panel-inner">
-      {renderSectionHeader(Smartphone, MSG.settingsSecurityTitle, MSG.settingsSecurityDesc, 'text-emerald')}
+      {renderSectionHeader(Smartphone, t('settingsSecurityTitle'), t('settingsSecurityDesc'), 'text-emerald')}
       <div className="settings-stack settings-stack--tight">
         <AppSecuritySettings disabled={isDeleting} hasLocalPassword={hasLocalPassword} />
 
         <div className="settings-row settings-row--flush">
           <div>
-            <h4 className="settings-row-label">{MSG.settingsAlbumShield}</h4>
+            <h4 className="settings-row-label">{t('settingsAlbumShield')}</h4>
             <p className="settings-row-desc">
-              {isWebBrowser() ? MSG.settingsAlbumShieldWebNote : MSG.settingsAlbumShieldDesc}
+              {isWebBrowser() ? t('settingsAlbumShieldWebNote') : t('settingsAlbumShieldDesc')}
             </p>
           </div>
           <label className="form-toggle">
             <input
               type="checkbox"
-              checked={albumScreenshotShield}
-              onChange={() => setAlbumScreenshotShield(!albumScreenshotShield)}
+              checked={privacyPrefs?.albumShieldEnabled !== false}
+              onChange={() =>
+                onPrivacyPrefsChange?.({
+                  albumShieldEnabled: privacyPrefs?.albumShieldEnabled === false,
+                })
+              }
               disabled={isDeleting || isWebBrowser()}
             />
             <span className="form-toggle-slider" />
@@ -475,49 +489,49 @@ export default function PrivacyCenter({
     <div className="settings-panel-inner">
       {renderSectionHeader(
         Accessibility,
-        MSG.settingsAccessibilityTitle,
-        MSG.settingsAccessibilityDesc,
+        t('settingsAccessibilityTitle'),
+        t('settingsAccessibilityDesc'),
         'text-amber',
       )}
       <div className="settings-stack settings-stack--tight">
         {renderAccessibilityToggle(
           'lightMode',
-          MSG.settingsLightMode,
-          MSG.settingsLightModeDesc,
+          t('settingsLightMode'),
+          t('settingsLightModeDesc'),
         )}
         {renderAccessibilityToggle(
           'reduceMotion',
-          MSG.settingsReduceMotion,
-          MSG.settingsReduceMotionDesc,
+          t('settingsReduceMotion'),
+          t('settingsReduceMotionDesc'),
         )}
         {renderAccessibilityToggle(
           'highContrast',
-          MSG.settingsHighContrast,
-          MSG.settingsHighContrastDesc,
+          t('settingsHighContrast'),
+          t('settingsHighContrastDesc'),
         )}
         {renderAccessibilityToggle(
           'reduceTransparency',
-          MSG.settingsReduceTransparency,
-          MSG.settingsReduceTransparencyDesc,
+          t('settingsReduceTransparency'),
+          t('settingsReduceTransparencyDesc'),
         )}
         {renderAccessibilityToggle(
           'strongFocus',
-          MSG.settingsStrongFocus,
-          MSG.settingsStrongFocusDesc,
+          t('settingsStrongFocus'),
+          t('settingsStrongFocusDesc'),
         )}
         {renderAccessibilityToggle(
           'underlineLinks',
-          MSG.settingsUnderlineLinks,
-          MSG.settingsUnderlineLinksDesc,
+          t('settingsUnderlineLinks'),
+          t('settingsUnderlineLinksDesc'),
         )}
 
         <div className="settings-row settings-row--compact">
           <div>
-            <h4 className="settings-row-label">{MSG.settingsDyslexicFont}</h4>
-            <p className="settings-row-desc">{MSG.settingsDyslexicFontDesc}</p>
+            <h4 className="settings-row-label">{t('settingsDyslexicFont')}</h4>
+            <p className="settings-row-desc">{t('settingsDyslexicFontDesc')}</p>
             <div className="a11y-font-preview" aria-hidden="true">
-              <p>{MSG.settingsDyslexicFontPreview1}</p>
-              <p>{MSG.settingsDyslexicFontPreview2}</p>
+              <p>{t('settingsDyslexicFontPreview1')}</p>
+              <p>{t('settingsDyslexicFontPreview2')}</p>
             </div>
           </div>
           <label className="form-toggle">
@@ -532,8 +546,8 @@ export default function PrivacyCenter({
         </div>
 
         <div className="u-flex-col u-gap-sm">
-          <span className="section-label">{MSG.settingsTextSizeLabel}</span>
-          <div className="strategy-list" role="radiogroup" aria-label={MSG.settingsTextSizeLabel}>
+          <span className="section-label">{t('settingsTextSizeLabel')}</span>
+          <div className="strategy-list" role="radiogroup" aria-label={t('settingsTextSizeLabel')}>
             {TEXT_SIZE_STRATEGIES.map((option) => (
               <div
                 key={option.id}
@@ -562,9 +576,9 @@ export default function PrivacyCenter({
 
   const renderLegal = () => (
     <div className="settings-panel-inner">
-      {renderSectionHeader(FileText, MSG.settingsLegalTitle, MSG.settingsLegalDesc, 'text-violet')}
+      {renderSectionHeader(FileText, t('settingsLegalTitle'), t('settingsLegalDesc'), 'text-violet')}
       <div className="settings-info-box">
-        <p className="settings-info-box-text">{MSG.settingsLegalBody}</p>
+        <p className="settings-info-box-text">{t('settingsLegalBody')}</p>
         <LegalLinks className="auth-legal-links auth-legal-links--stacked" />
       </div>
     </div>
@@ -572,18 +586,18 @@ export default function PrivacyCenter({
 
   const renderAccount = () => (
     <div className="settings-panel-inner settings-panel-inner--danger">
-      {renderSectionHeader(Trash2, MSG.settingsAccountTitle, MSG.settingsAccountDesc, 'text-rose')}
+      {renderSectionHeader(Trash2, t('settingsAccountTitle'), t('settingsAccountDesc'), 'text-rose')}
       <div className="settings-stack">
         <div className="settings-info-box">
-          <h4 className="settings-info-box-title">{MSG.settingsAccountDataTitle}</h4>
-          <p className="settings-info-box-text">{MSG.settingsAccountDataDesc}</p>
+          <h4 className="settings-info-box-title">{t('settingsAccountDataTitle')}</h4>
+          <p className="settings-info-box-text">{t('settingsAccountDataDesc')}</p>
         </div>
 
         <ChangePasswordForm userId={session?.user?.id} />
 
-        {renderPlannedRoadmap(MSG.settingsPlannedAccountTitle, ACCOUNT_PLANNED)}
+        {renderPlannedRoadmap(t('settingsPlannedAccountTitle'), ACCOUNT_PLANNED)}
 
-        <span className="section-label">{MSG.settingsAccountTitle}</span>
+        <span className="section-label">{t('settingsAccountTitle')}</span>
       </div>
       <div className="destructive-actions">
         <button
@@ -591,7 +605,7 @@ export default function PrivacyCenter({
           onClick={handleDeviceWipe}
           className="btn btn-secondary btn-wipe-outline"
         >
-          {MSG.settingsWipeDevice}
+          {t('settingsWipeDevice')}
         </button>
         <button
           type="button"
@@ -599,7 +613,7 @@ export default function PrivacyCenter({
           disabled={isDeleting}
           className="btn btn-danger btn-sm"
         >
-          {MSG.settingsDeleteAccount}
+          {t('settingsDeleteAccount')}
         </button>
       </div>
     </div>
@@ -628,7 +642,7 @@ export default function PrivacyCenter({
     e.preventDefault();
     const description = errorReportText.trim();
     if (description.length < 10) {
-      toast(MSG.diagnosticsErrorReportTooShort, { type: 'error' });
+      toast(t('diagnosticsErrorReportTooShort'), { type: 'error' });
       return;
     }
 
@@ -637,15 +651,15 @@ export default function PrivacyCenter({
     try {
       if (isApiEnabled()) {
         await submitErrorReport(description, context);
-        toast(MSG.diagnosticsErrorReportSuccess, { type: 'success' });
+        toast(t('diagnosticsErrorReportSuccess'), { type: 'success' });
       } else {
         queueErrorReportLocally({ description, context });
-        toast(MSG.diagnosticsErrorReportSavedLocally, { type: 'info' });
+        toast(t('diagnosticsErrorReportSavedLocally'), { type: 'info' });
       }
       setErrorReportText('');
     } catch {
       queueErrorReportLocally({ description, context });
-      toast(MSG.diagnosticsErrorReportSavedLocally, { type: 'info' });
+      toast(t('diagnosticsErrorReportSavedLocally'), { type: 'info' });
       setErrorReportText('');
     } finally {
       setErrorReportSubmitting(false);
@@ -654,21 +668,21 @@ export default function PrivacyCenter({
 
   const renderDiagnostics = () => (
     <div className="settings-panel-inner">
-      {renderSectionHeader(HelpCircle, MSG.settingsDiagnosticsTitle, MSG.diagnosticsIntro, 'text-cyan')}
+      {renderSectionHeader(HelpCircle, t('settingsDiagnosticsTitle'), t('diagnosticsIntro'), 'text-cyan')}
 
       <form className="diagnostics-error-form" onSubmit={handleSubmitErrorReport}>
         <div className="settings-info-box diagnostics-error-form-intro">
-          <h4 className="settings-info-box-title">{MSG.diagnosticsErrorReportTitle}</h4>
-          <p className="settings-info-box-text">{MSG.diagnosticsErrorReportDesc}</p>
+          <h4 className="settings-info-box-title">{t('diagnosticsErrorReportTitle')}</h4>
+          <p className="settings-info-box-text">{t('diagnosticsErrorReportDesc')}</p>
         </div>
 
         <label className="profile-field">
-          <span className="visually-hidden">{MSG.diagnosticsErrorReportTitle}</span>
+          <span className="visually-hidden">{t('diagnosticsErrorReportTitle')}</span>
           <textarea
             className="profile-input profile-textarea diagnostics-error-textarea"
             value={errorReportText}
             onChange={(e) => setErrorReportText(e.target.value)}
-            placeholder={MSG.diagnosticsErrorReportPlaceholder}
+            placeholder={t('diagnosticsErrorReportPlaceholder')}
             rows={4}
             maxLength={4000}
             disabled={isDeleting || errorReportSubmitting}
@@ -679,8 +693,8 @@ export default function PrivacyCenter({
 
         <div className="settings-row settings-row--compact">
           <div>
-            <h4 className="settings-row-label">{MSG.diagnosticsErrorReportIncludeContext}</h4>
-            <p className="settings-row-desc">{MSG.diagnosticsErrorReportIncludeContextDesc}</p>
+            <h4 className="settings-row-label">{t('diagnosticsErrorReportIncludeContext')}</h4>
+            <p className="settings-row-desc">{t('diagnosticsErrorReportIncludeContextDesc')}</p>
           </div>
           <label className="form-toggle">
             <input
@@ -695,8 +709,8 @@ export default function PrivacyCenter({
 
         <div className="settings-row settings-row--compact">
           <div>
-            <h4 className="settings-row-label">{MSG.diagnosticsAutoErrorReportLabel}</h4>
-            <p className="settings-row-desc">{MSG.diagnosticsAutoErrorReportDesc}</p>
+            <h4 className="settings-row-label">{t('diagnosticsAutoErrorReportLabel')}</h4>
+            <p className="settings-row-desc">{t('diagnosticsAutoErrorReportDesc')}</p>
           </div>
           <label className="form-toggle">
             <input
@@ -720,8 +734,8 @@ export default function PrivacyCenter({
         >
           <Bug className="icon-sm" />
           {errorReportSubmitting
-            ? MSG.diagnosticsErrorReportSubmitting
-            : MSG.diagnosticsErrorReportSubmit}
+            ? t('diagnosticsErrorReportSubmitting')
+            : t('diagnosticsErrorReportSubmit')}
         </button>
       </form>
 
@@ -731,18 +745,18 @@ export default function PrivacyCenter({
         currentUser?.keys && (
           <div className="key-ring-box">
             <div className="u-flex-col u-gap-sm">
-              <span className="key-ring-label">{MSG.privacyDeviceIdLabel}</span>
+              <span className="key-ring-label">{t('privacyDeviceIdLabel')}</span>
               <pre className="key-ring-pre">{currentUser.keys.deviceId}</pre>
             </div>
             <div className="u-flex-col u-gap-sm">
-              <span className="key-ring-label">{MSG.privacyPublicKeyLabel}</span>
+              <span className="key-ring-label">{t('privacyPublicKeyLabel')}</span>
               <pre className="key-ring-pre">{currentUser.keys.publicKey}</pre>
             </div>
             <div className="u-flex-col u-gap-sm">
               <div className="key-ring-label-row">
-                <span className="key-ring-label">{MSG.privacyPrivateKeyLabel}</span>
+                <span className="key-ring-label">{t('privacyPrivateKeyLabel')}</span>
                 <span className="metadata-badge badge-warning badge-sm">
-                  {MSG.privacyPrivateKeyBadge}
+                  {t('privacyPrivateKeyBadge')}
                 </span>
               </div>
               <pre className="key-ring-pre key-ring-pre-private">{currentUser.keys.privateKey}</pre>
@@ -750,7 +764,7 @@ export default function PrivacyCenter({
             <div className="key-fingerprint-row">
               <div>
                 <span className="key-ring-label key-fingerprint-text">
-                  {MSG.privacyFingerprintLabel}
+                  {t('privacyFingerprintLabel')}
                 </span>
                 <span className="key-fingerprint-val">{currentUser.keys.fingerprint}</span>
               </div>
@@ -760,11 +774,11 @@ export default function PrivacyCenter({
                 disabled={isDeleting}
                 className="btn btn-secondary btn-sm"
               >
-                {MSG.rotateKeys}
+                {t('rotateKeys')}
               </button>
             </div>
             <div className="warning-banner warning-banner--cyan">
-              <p className="warning-banner-text">{MSG.privacyKeyRingNote}</p>
+              <p className="warning-banner-text">{t('privacyKeyRingNote')}</p>
             </div>
           </div>
         )
@@ -786,8 +800,8 @@ export default function PrivacyCenter({
     <div className="page-stack">
       <div className="grid-section-header">
         <div>
-          <h2 className="grid-section-title">{MSG.settingsPageTitle}</h2>
-          <p className="grid-section-desc">{MSG.privacyPageDesc}</p>
+          <h2 className="grid-section-title">{t('settingsPageTitle')}</h2>
+          <p className="grid-section-desc">{t('privacyPageDesc')}</p>
         </div>
       </div>
 
@@ -798,17 +812,17 @@ export default function PrivacyCenter({
               <ShieldAlert className="icon-md" />
             </div>
             <div>
-              <h4 className="countdown-title">{MSG.settingsDeletionBannerTitle}</h4>
-              <p className="countdown-desc">{MSG.settingsDeletionBannerDesc}</p>
+              <h4 className="countdown-title">{t('settingsDeletionBannerTitle')}</h4>
+              <p className="countdown-desc">{t('settingsDeletionBannerDesc')}</p>
             </div>
           </div>
           <div className="countdown-timer-box">
             <div className="countdown-timer-wrap">
-              <span className="countdown-label">{MSG.settingsDeletionTimerLabel}</span>
+              <span className="countdown-label">{t('settingsDeletionTimerLabel')}</span>
               <span className="countdown-timer-val">{deletionTimer}</span>
             </div>
             <button type="button" onClick={cancelAccountDeletionLocal} className="btn btn-restore">
-              <RotateCcw className="icon-sm" /> {MSG.settingsRestoreAccount}
+              <RotateCcw className="icon-sm" /> {t('settingsRestoreAccount')}
             </button>
           </div>
         </div>

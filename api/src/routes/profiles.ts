@@ -10,8 +10,8 @@ import {
 export const profilesRouter = Router();
 
 profilesRouter.get('/nearby', requireAuth, async (req, res) => {
-  const profiles = await listNearbyProfiles(req.authUser!.id);
-  res.json({ profiles });
+  const { profiles, totalNearby, filtersActive } = await listNearbyProfiles(req.authUser!.id);
+  res.json({ profiles, totalNearby, filtersActive });
 });
 
 profilesRouter.get('/me', requireAuth, async (req, res) => {
@@ -29,7 +29,13 @@ profilesRouter.patch('/me', requireAuth, async (req, res) => {
       message === 'Invalid avatar media' ||
       message === 'Age must be 18 or older' ||
       message === 'Invalid gender' ||
-      message === 'Invalid lookingFor'
+      message === 'Invalid lookingFor' ||
+      message === 'Invalid social links' ||
+      message.startsWith('Invalid Instagram') ||
+      message.startsWith('Invalid Twitter') ||
+      message.startsWith('Invalid Facebook') ||
+      message.startsWith('Invalid Bluesky') ||
+      message.startsWith('Invalid Discord')
     ) {
       return res.status(400).json({ error: message });
     }

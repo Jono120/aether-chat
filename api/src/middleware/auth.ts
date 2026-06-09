@@ -52,9 +52,11 @@ async function verifyEntraToken(token: string): Promise<jwt.JwtPayload> {
   }) as jwt.JwtPayload;
 }
 
-async function resolveUser(entraOid: string): Promise<AuthUser> {
+type ResolvedUser = AuthUser & { status: string };
+
+async function resolveUser(entraOid: string): Promise<ResolvedUser> {
   const existing = await pool.query(
-    'SELECT id, entra_oid, is_admin FROM users WHERE entra_oid = $1',
+    'SELECT id, entra_oid, is_admin, status FROM users WHERE entra_oid = $1',
     [entraOid],
   );
   if (existing.rows[0]) {
@@ -62,10 +64,12 @@ async function resolveUser(entraOid: string): Promise<AuthUser> {
       id: existing.rows[0].id,
       entraOid: existing.rows[0].entra_oid,
       isAdmin: Boolean(existing.rows[0].is_admin),
+      status: existing.rows[0].status,
     };
   }
   const inserted = await pool.query(
-    'INSERT INTO users (entra_oid, is_admin) VALUES ($1, false) RETURNING id, entra_oid, is_admin',
+    `INSERT INTO users (entra_oid, is_admin) VALUES ($1, false)
+     RETURNING id, entra_oid, is_admin, status`,
     [entraOid],
   );
   await pool.query('INSERT INTO user_preferences (user_id) VALUES ($1) ON CONFLICT DO NOTHING', [
@@ -75,15 +79,25 @@ async function resolveUser(entraOid: string): Promise<AuthUser> {
     id: inserted.rows[0].id,
     entraOid: inserted.rows[0].entra_oid,
     isAdmin: Boolean(inserted.rows[0].is_admin),
+    status: inserted.rows[0].status,
   };
 }
+
+function rejectIfLocked(status: string): boolean {
+  return status === 'locked';
+}
+
+export { rejectIfLocked };
 
 export async function requireAuth(req: Request, res: Response, next: NextFunction) {
   try {
     if (config.devAuthBypass && req.header('x-dev-user-id')) {
       const devId = req.header('x-dev-user-id')!;
       const user = await resolveUser(devId);
-      req.authUser = { ...user, isAdmin: true };
+      if (rejectIfLocked(user.status)) {
+        return res.status(403).json({ error: 'Account locked' });
+      }
+      req.authUser = { id: user.id, entraOid: user.entraOid, isAdmin: true };
       return next();
     }
 
@@ -96,14 +110,22 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
     if (config.azureAdTenantId && config.azureAdClientId) {
       const payload = await verifyEntraToken(token);
       const oid = (payload.oid ?? payload.sub) as string;
-      req.authUser = await resolveUser(oid);
+      const user = await resolveUser(oid);
+      if (rejectIfLocked(user.status)) {
+        return res.status(403).json({ error: 'Account locked' });
+      }
+      req.authUser = { id: user.id, entraOid: user.entraOid, isAdmin: user.isAdmin };
       return next();
     }
 
     if (config.jwtSecret) {
       try {
         const sub = verifySessionToken(token);
-        req.authUser = await resolveUser(sub);
+        const user = await resolveUser(sub);
+        if (rejectIfLocked(user.status)) {
+          return res.status(403).json({ error: 'Account locked' });
+        }
+        req.authUser = { id: user.id, entraOid: user.entraOid, isAdmin: user.isAdmin };
         return next();
       } catch {
         return res.status(401).json({ error: 'Invalid or expired session' });

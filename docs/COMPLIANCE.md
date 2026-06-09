@@ -66,7 +66,7 @@ Retention: Log Analytics workspace **30 days** (`infra/modules/compute/container
 ## Data subject requests
 
 - Account deletion can be scheduled from Privacy Center (grace period in `localStorage` + API).
-- For GDPR-style export, use chat backup export until a dedicated export API is added.
+- **GDPR export:** `GET /api/v1/account/export` returns server-held personal data (profile, preferences, ciphertext messages, media metadata). Message plaintext requires device keys or [chat backup export](../src/components/ChatBackupPanel.jsx) for decrypted history.
 
 ## Error reporting
 

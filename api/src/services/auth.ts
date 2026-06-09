@@ -47,11 +47,13 @@ async function userIsAdmin(
   entraOid: string,
   email?: string | null,
 ): Promise<boolean> {
-  if (entraOid === config.adminEntraOid || entraOid === 'dev-user-1') {
-    return true;
-  }
-  if (email && email.toLowerCase() === config.adminEmail.toLowerCase()) {
-    return true;
+  if (config.devAuthBypass) {
+    if (entraOid === config.adminEntraOid || entraOid === 'dev-user-1') {
+      return true;
+    }
+    if (email && email.toLowerCase() === config.adminEmail.toLowerCase()) {
+      return true;
+    }
   }
   const result = await pool.query('SELECT is_admin FROM users WHERE id = $1', [userId]);
   return Boolean(result.rows[0]?.is_admin);

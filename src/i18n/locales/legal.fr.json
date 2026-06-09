@@ -1,0 +1,207 @@
+{
+  "lastUpdated": "2026-06-03",
+  "disclaimer": "Ce texte décrit le fonctionnement actuel d’Aether. Il ne constitue pas un avis juridique. Un juriste qualifié devrait le relire avant un lancement public complet.",
+  "termsSections": [
+    {
+      "id": "acceptance",
+      "title": "1. Accord",
+      "paragraphs": [
+        "En créant un compte, en vous connectant ou en utilisant Aether, vous acceptez ces Conditions d’utilisation et notre Politique de confidentialité.",
+        "Si vous n’êtes pas d’accord, n’utilisez pas le service."
+      ]
+    },
+    {
+      "id": "eligibility",
+      "title": "2. Qui peut utiliser Aether",
+      "paragraphs": [
+        "Aether est un service de découverte sociale et de rencontre destiné uniquement aux adultes de 18 ans et plus.",
+        "Vous devez confirmer votre âge avant la première utilisation. Nous pouvons suspendre les comptes semblant appartenir à des mineurs."
+      ]
+    },
+    {
+      "id": "account",
+      "title": "3. Votre compte",
+      "paragraphs": [
+        "Vous êtes responsable de la confidentialité de vos identifiants de connexion et de l’activité effectuée sur votre compte.",
+        "Les informations de profil que vous choisissez de publier (nom affiché, bio, photos) sont visibles par les autres utilisateurs selon vos paramètres de découverte et de confidentialité.",
+        "Vous pouvez planifier la suppression du compte depuis Paramètres ; la suppression est finalisée après tout délai de grâce indiqué."
+      ]
+    },
+    {
+      "id": "conduct",
+      "title": "4. Utilisation acceptable",
+      "paragraphs": [
+        "Vous ne devez pas harceler, menacer, traquer, usurper une identité, spammer ou publier du contenu illégal.",
+        "Vous ne devez pas tenter d’accéder aux clés privées d’autres utilisateurs, déchiffrer des messages sans autorisation ni sonder nos systèmes.",
+        "Nous pouvons supprimer du contenu, restreindre des fonctionnalités ou suspendre des comptes qui enfreignent ces règles ou la loi applicable."
+      ]
+    },
+    {
+      "id": "e2ee",
+      "title": "5. Chiffrement et vos appareils",
+      "paragraphs": [
+        "La messagerie privée utilise un chiffrement de bout en bout. Le texte des messages est chiffré sur votre appareil avant l’envoi.",
+        "Les clés privées restent sur votre appareil (stockage du navigateur). Si vous perdez l’accès à votre appareil ou effacez les données du navigateur sans sauvegarde, nous ne pouvons pas récupérer vos clés ni lire vos anciens messages.",
+        "Il vous revient de vérifier vos contacts (par ex. en partageant des codes/empreintes) avant de faire confiance à une conversation."
+      ]
+    },
+    {
+      "id": "location",
+      "title": "6. Localisation et découverte",
+      "paragraphs": [
+        "Aether ne stocke pas de coordonnées GPS précises sur ses serveurs pour la découverte.",
+        "Les distances affichées aux autres utilisateurs sont volontairement approximatives (bandes floutées ou libellés de grille) pour réduire le risque lié à la confidentialité de localisation."
+      ]
+    },
+    {
+      "id": "safety",
+      "title": "7. Outils de sécurité",
+      "paragraphs": [
+        "Vous pouvez bloquer des utilisateurs, signaler des utilisateurs pour modération, et utiliser les fonctions panique/furtif pour masquer votre profil et révoquer des clés.",
+        "Les signalements et blocages sont traités selon nos pratiques de modération ; nous ne garantissons ni résultats ni délais de réponse."
+      ]
+    },
+    {
+      "id": "termination",
+      "title": "8. Fin du service",
+      "paragraphs": [
+        "Vous pouvez cesser d’utiliser Aether à tout moment et supprimer votre compte depuis Paramètres.",
+        "Nous pouvons suspendre ou résilier l’accès en cas de violation de ces conditions, d’exigences légales ou pour des raisons opérationnelles, avec notification lorsque cela est possible."
+      ]
+    },
+    {
+      "id": "disclaimer",
+      "title": "9. Exclusions de garantie",
+      "paragraphs": [
+        "Aether est fourni « en l’état » pendant la période bêta, sans garantie de service ininterrompu, d’adéquation à un usage particulier ou de fonctionnement sans erreur.",
+        "Dans la mesure permise par la loi, nous ne sommes pas responsables des dommages indirects ou consécutifs découlant de l’utilisation du service."
+      ]
+    },
+    {
+      "id": "changes",
+      "title": "10. Modifications",
+      "paragraphs": [
+        "Nous pouvons mettre à jour ces conditions. La date « Dernière mise à jour » en haut de cette page sera modifiée lorsque ce sera le cas.",
+        "La poursuite de l’utilisation après l’entrée en vigueur des changements vaut acceptation des conditions révisées."
+      ]
+    },
+    {
+      "id": "contact",
+      "title": "11. Contact",
+      "paragraphs": [
+        "Questions sur ces conditions : utilisez Paramètres → Diagnostic → Signaler un problème, ou contactez l’opérateur de votre plateforme via le canal de support indiqué lors de l’inscription."
+      ]
+    }
+  ],
+  "privacySections": [
+    {
+      "id": "intro",
+      "title": "1. Vue d’ensemble",
+      "paragraphs": [
+        "Cette Politique de confidentialité explique quelles données personnelles Aether traite, pourquoi, et quels choix s’offrent à vous.",
+        "Aether est conçu de sorte que le contenu des messages privés ne soit pas lisible par nous sans les clés de votre appareil."
+      ]
+    },
+    {
+      "id": "collect",
+      "title": "2. Données que nous traitons",
+      "paragraphs": [
+        "Données de compte : e-mail (pour la connexion), nom affiché et identifiants d’authentification gérés par notre API.",
+        "Données de profil : bio, tags, avatar, paramètres de découvrabilité, et libellés de distance floutés — pas de GPS brut sur le serveur.",
+        "Métadonnées de messagerie : membres des conversations, enveloppes chiffrées, horodatages, et signaux optionnels d’accusé de lecture si vous les activez.",
+        "Cryptographie : clés publiques enregistrées pour vos appareils ; les clés privées restent uniquement sur votre appareil.",
+        "Données de sécurité : listes de blocage et signalements d’utilisateurs que vous soumettez.",
+        "Médias : fichiers d’album téléversés (métadonnées dans notre base de données ; octets dans un stockage blob chiffré lorsqu’il est configuré)."
+      ]
+    },
+    {
+      "id": "not-collect",
+      "title": "3. Ce que nous ne faisons pas",
+      "paragraphs": [
+        "Nous ne stockons pas le texte en clair des messages sur nos serveurs.",
+        "Nous ne vendons pas vos données personnelles.",
+        "Les journaux applicatifs opérationnels envoyés à notre hébergeur sont assainis pour éviter les identifiants personnels (voir section 7)."
+      ]
+    },
+    {
+      "id": "messages",
+      "title": "4. Messages chiffrés de bout en bout",
+      "paragraphs": [
+        "Les messages sont chiffrés sur votre appareil avant l’envoi. Nous traitons uniquement le texte chiffré et les métadonnées de routage.",
+        "Si vous activez les messages éphémères ou les fonctions TTL des médias, le contenu est supprimé selon ces paramètres et les tâches de purge serveur."
+      ]
+    },
+    {
+      "id": "location",
+      "title": "5. Localisation",
+      "paragraphs": [
+        "La découverte utilise des bandes de distance approximatives ou des libellés de grille — pas de coordonnées exactes stockées dans PostgreSQL.",
+        "Vous contrôlez la découvrabilité (y compris furtif/panique) depuis Paramètres."
+      ]
+    },
+    {
+      "id": "diagnostics",
+      "title": "6. Rapports d’erreur (votre choix)",
+      "paragraphs": [
+        "Rapports manuels : vous choisissez ce que vous écrivez dans Paramètres → Diagnostic. Le contexte optionnel de l’appareil utilise un ensemble de champs autorisés (navigateur, chemin de route, thème) — pas le contenu des discussions.",
+        "Rapports automatiques de crash : désactivés par défaut. Si vous activez « Envoyer automatiquement les rapports de crash », nous pouvons recevoir un nom d’erreur et un extrait de pile tronqué lorsque vous êtes connecté. Vous pouvez désactiver cette option à tout moment.",
+        "Le contenu des rapports peut être examiné par les opérateurs pour corriger des bugs. Il n’est pas utilisé pour du profilage publicitaire."
+      ]
+    },
+    {
+      "id": "logs",
+      "title": "7. Journaux opérationnels",
+      "paragraphs": [
+        "Notre API écrit des journaux structurés pour la sécurité et la fiabilité (par ex. ID de requête, méthode HTTP, route assainie, code de statut).",
+        "Ces journaux sont conçus pour ne pas inclure d’e-mail, d’ID utilisateur, de corps de message ni de jeton. La conservation suit la politique de notre espace de logs cloud (généralement ~30 jours)."
+      ]
+    },
+    {
+      "id": "rights",
+      "title": "8. Vos droits",
+      "paragraphs": [
+        "Selon votre région, vous pouvez disposer de droits d’accès, de rectification, de suppression ou d’export de vos données personnelles.",
+        "La suppression de compte et l’export de sauvegarde des discussions sont disponibles dans Paramètres aujourd’hui ; contactez-nous via Diagnostic si vous avez besoin d’aide supplémentaire."
+      ]
+    },
+    {
+      "id": "retention",
+      "title": "9. Conservation",
+      "paragraphs": [
+        "Les données de compte et de profil sont conservées tant que votre compte est actif et pendant tout délai de grâce après demande de suppression.",
+        "Le texte chiffré et les médias peuvent être purgés selon les calendriers configurés pour le service (TTL / workers de suppression de compte).",
+        "Les rapports d’erreur sont conservés jusqu’à leur traitement et suppression par les opérateurs, sauf obligation légale de conservation plus longue."
+      ]
+    },
+    {
+      "id": "processors",
+      "title": "10. Prestataires de services",
+      "paragraphs": [
+        "Lorsque l’API de production est activée, l’hébergement peut inclure Azure (par ex. Static Web Apps, Container Apps, PostgreSQL, Blob Storage, SignalR, Log Analytics) selon leurs conditions et programmes de sécurité.",
+        "La réinitialisation de mot de passe et les e-mails d’alerte d’erreur optionnels utilisent le SMTP que vous configurez ; le contenu de ces e-mails reste minimal."
+      ]
+    },
+    {
+      "id": "children",
+      "title": "11. Enfants",
+      "paragraphs": [
+        "Aether n’est pas destiné aux moins de 18 ans. Nous ne collectons pas sciemment de données de mineurs."
+      ]
+    },
+    {
+      "id": "changes",
+      "title": "12. Modifications",
+      "paragraphs": [
+        "Nous pouvons mettre à jour cette politique. La date « Dernière mise à jour » changera lorsque ce sera le cas.",
+        "Les changements importants seront affichés dans l’app lorsque cela est possible."
+      ]
+    },
+    {
+      "id": "contact",
+      "title": "13. Contact",
+      "paragraphs": [
+        "Questions sur la confidentialité : Paramètres → Diagnostic → Signaler un problème, ou le contact support publié par votre opérateur."
+      ]
+    }
+  ]
+}

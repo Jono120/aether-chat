@@ -20,6 +20,7 @@ on:
         type: choice
         options:
           - dev
+          - staging
           - prod
 
 permissions:
@@ -92,6 +93,9 @@ jobs:
           if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ github.event.inputs.environment }}" = "prod" ]; then
             echo "var_file=environments/prod.tfvars" >> "$GITHUB_OUTPUT"
             echo "backend_key=${PROJECT}-prod.terraform.tfstate" >> "$GITHUB_OUTPUT"
+          elif [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ github.event.inputs.environment }}" = "staging" ]; then
+            echo "var_file=environments/staging.tfvars" >> "$GITHUB_OUTPUT"
+            echo "backend_key=${PROJECT}-staging.terraform.tfstate" >> "$GITHUB_OUTPUT"
           else
             echo "var_file=environments/dev.tfvars" >> "$GITHUB_OUTPUT"
             echo "backend_key=${PROJECT}-dev.terraform.tfstate" >> "$GITHUB_OUTPUT"

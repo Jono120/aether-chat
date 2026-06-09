@@ -42,9 +42,9 @@ Early planning assumed Tailwind and Web Crypto API keys. The shipped prototype d
 | Planned (implementation plan) | Actual |
 |-------------------------------|--------|
 | Tailwind + PostCSS | **Vanilla CSS** in `src/index.css` |
-| Web Crypto API for keys | **Simulated** keys + XOR-style cipher in `crypto.js` |
-| IndexedDB for panic cache | **`localStorage` only** (`aether_user_keys`, `aether_deletion_scheduled`) |
-| Chat persistence across reload | React state in `ChatRoom` — **lost on full page reload** |
+| Web Crypto API for keys | **Real** X25519/AES-GCM in `crypto.js`; keys in IndexedDB (`keyStorage.js`) |
+| IndexedDB for device keys | **Implemented** — private keys in IndexedDB; legacy `localStorage` migrated on load |
+| Chat persistence across reload | Demo: React state only; **Live API**: ciphertext synced from server |
 | Stealth hides grid | **Implemented** — empty state when `stealthMode` |
 | Album shield wired to Privacy Centre | **Implemented** — lifted to `App.jsx` |
 
@@ -58,22 +58,13 @@ Early planning assumed Tailwind and Web Crypto API keys. The shipped prototype d
 | Location fuzzing UI | `PrivacyCenter.jsx` | Strategy radios — UI state only |
 | Discovery filters | `PrivacyCenter.jsx`, `Grid.jsx`, `profileFilters.js` | Age/gender/interest filters; display toggles |
 | Presence / stealth | `Navigation.jsx`, `App.jsx`, `Grid.jsx` | Grid hidden when stealth on |
-| E2EE + wire inspector | `ChatRoom.jsx`, `crypto.js` | Simulated cipher |
+| E2EE + wire inspector | `ChatRoom.jsx`, `crypto.js` | Real Web Crypto X25519/AES-GCM |
 | Ephemeral album + EXIF | `ChatRoom.jsx`, `exif.js` | Real JPEG APP1 strip; shield on blur |
-| Panic + 30-day deletion | `App.jsx`, `PrivacyCenter.jsx` | `localStorage` + client countdown |
+| Panic + 30-day deletion | `App.jsx`, `PrivacyCenter.jsx` | IndexedDB keys + API sync when online |
 | Responsive layout | `index.css` | Desktop split panes; mobile bottom nav &lt; 768px |
 
 ---
 
 ## Documentation index
 
-See [README.md](README.md) for the full map. Key documents:
-
-| Doc | Topic |
-|-----|--------|
-| [README.md](../README.md) | Quick start, feature overview |
-| [project-summary.md](project-summary.md) | Executive summary and architecture overview |
-| [FEATURES.md](FEATURES.md) | Feature catalogue and 5-minute demo |
-| [ARCHITECTURE.md](ARCHITECTURE.md) | Components, state, flows |
-| [SECURITY.md](SECURITY.md) | Simulated vs real behaviour |
-| [DEVELOPMENT.md](DEVELOPMENT.md) | Scripts, verification checklist |
+See [README.md](README.md) for the full map.

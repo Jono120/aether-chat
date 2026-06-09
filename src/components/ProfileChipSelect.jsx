@@ -1,9 +1,13 @@
 import React from 'react';
+import { useTranslation } from '../i18n/index.js';
 
 export default function ProfileChipSelect({ options, value = [], onChange, ariaLabel, disabled = false }) {
-  const normalized = options.map((option) =>
-    typeof option === 'string' ? { value: option, label: option } : option,
-  );
+  const { t } = useTranslation();
+  const normalized = options.map((option) => {
+    if (typeof option === 'string') return { value: option, label: option };
+    if (option.labelKey) return { value: option.value, label: t(option.labelKey) };
+    return option;
+  });
   const selected = new Set(value);
 
   const toggle = (optionValue) => {

@@ -46,7 +46,14 @@ output "storage_account_name" {
 
 output "api_url" {
   description = "HTTPS base URL for the API (set as VITE_API_URL in SPA build)."
-  value       = var.enable_backend ? "https://${module.container_app_api[0].fqdn}" : null
+  value       = var.enable_backend ? (
+    var.enable_edge_waf ? "https://${module.edge[0].front_door_endpoint_hostname}" : "https://${module.container_app_api[0].fqdn}"
+  ) : null
+}
+
+output "front_door_hostname" {
+  description = "Azure Front Door endpoint hostname when WAF edge is enabled."
+  value       = var.enable_backend && var.enable_edge_waf ? module.edge[0].front_door_endpoint_hostname : null
 }
 
 output "container_registry_login_server" {

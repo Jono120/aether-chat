@@ -33,7 +33,7 @@ From [`package.json`](../package.json):
 ```text
 optimistic-pasteur/
 ├── api/                  # TypeScript REST API (profiles, keys, chat, media)
-├── docs/                 # SECURITY, ARCHITECTURE, BACKEND, DATA_MODEL, …
+├── docs/                 # SECURITY, ARCHITECTURE, BACKEND, …
 ├── infra/                # Terraform (SWA + optional backend modules)
 ├── public/               # Static assets (favicon)
 ├── src/
@@ -99,6 +99,50 @@ VITE_DEV_USER_ID=dev-user-1
 
 The API accepts `X-Dev-User-Id` when `DEV_AUTH_BYPASS=true` (default in `api/.env.example`).
 
+### Privacy preferences (Phase 1)
+
+Distance fuzzing strategy and album screenshot shield persist in `user_preferences`:
+
+| Endpoint | Body (PATCH) |
+|----------|----------------|
+| `GET /api/v1/users/me/privacy-preferences` | — |
+| `PATCH /api/v1/users/me/privacy-preferences` | `{ fuzzingStrategy?, albumShieldEnabled? }` |
+
+Valid `fuzzingStrategy` values: `grid_snap`, `jitter`, `distance_only`.
+
+Offline/demo: `src/utils/privacyPrefsStorage.js` (`aether_privacy_prefs` in localStorage).
+
+### App store links (Phase 2)
+
+Configure HTTPS store URLs for `WebAlbumBlockedBanner`:
+
+| Source | Variables |
+|--------|-----------|
+| SPA build | `VITE_IOS_APP_STORE_URL`, `VITE_ANDROID_PLAY_STORE_URL` in root `.env` |
+| API (overrides env when set) | `IOS_APP_STORE_URL`, `ANDROID_PLAY_STORE_URL` in `api/.env` → `GET /api/v1/config/mobile-links` |
+
+The banner prefers the iOS link on Apple devices and the Play Store link on Android when both are configured.
+
+### Native app (Capacitor — Phase 3)
+
+Build and run the Android or iOS shell:
+
+```bash
+npm run mobile:setup          # first time
+npm run mobile:sync           # after SPA changes
+npm run mobile:open:android   # or mobile:open:ios on macOS
+```
+
+See [mobile/README.md](../mobile/README.md). Native runs use `isNativeApp()` → private albums enabled and `X-Aether-Client: native`.
+
+### Discovery filter tests (Phase 4)
+
+```bash
+cd api && npm test
+```
+
+Filter logic is shared between SQL (`discoveryFilterSql.ts`) and the client (`profileFilters.js`) via matching rules documented in `discoveryFilterMatch.ts`.
+
 ---
 
 ## Adding profiles
@@ -115,7 +159,7 @@ The API accepts `X-Dev-User-Id` when `DEV_AUTH_BYPASS=true` (default in `api/.en
 |--------|------|-------------------------|
 | Web Crypto | `src/utils/crypto.js` | Update [SECURITY.md](SECURITY.md) |
 | EXIF tools | `src/utils/exif.js` | Update SECURITY.md (functional vs simulated sections) |
-| API | `api/src/` | Update [BACKEND.md](BACKEND.md) and [DATA_MODEL.md](DATA_MODEL.md) |
+| API | `api/src/` | Update [BACKEND.md](BACKEND.md) |
 
 ---
 
@@ -145,18 +189,6 @@ For Azure hosting, Terraform, and GitHub Actions pipelines, see [DEPLOYMENT.md](
 
 See [README.md](README.md) in this folder for the full map.
 
-| Doc | Topic |
-|-----|--------|
-| [project-summary.md](project-summary.md) | Executive summary and architecture overview |
-| [SECURITY.md](SECURITY.md) | Prototype limits, simulated vs real behaviour |
-| [ARCHITECTURE.md](ARCHITECTURE.md) | Components, state, flows |
-| [FEATURES.md](FEATURES.md) | Feature catalogue and demo script |
-| [DEVELOPMENT.md](DEVELOPMENT.md) | This file |
-| [DEPLOYMENT.md](DEPLOYMENT.md) | Azure SWA, Terraform, CI/CD |
-| [BACKEND.md](BACKEND.md) | API services and E2EE boundaries |
-| [DATA_MODEL.md](DATA_MODEL.md) | Database schema |
-| [DESIGN.md](DESIGN.md) | Design criteria and plan vs built |
-
 ---
 
 ## Verification
@@ -183,6 +215,7 @@ Expect a clean Vite production build.
 | 8 | Panic: LS cleared, stealth on, new keys, chat remount |
 | 9 | Regular chat copyable; album shield scoped to album |
 | 10 | Mobile bottom nav: Grid / Chat / Security |
+| 11 | **Privacy prefs:** Settings → Discovery → distance strategy; reload — persists (`aether_privacy_prefs` or API) |
 
 ### Visual QA (UI modernisation)
 

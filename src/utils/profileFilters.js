@@ -6,6 +6,16 @@ export const DEFAULT_DISCOVERY_FILTERS = {
   interestMatch: 'any',
 };
 
+/** Ensures ageMax is not below ageMin when both are set. */
+export function coerceDiscoveryAgeRange(filters) {
+  const ageMin = filters.ageMin ?? null;
+  let ageMax = filters.ageMax ?? null;
+  if (ageMin != null && ageMax != null && ageMax < ageMin) {
+    ageMax = ageMin;
+  }
+  return { ...filters, ageMin, ageMax };
+}
+
 export const DEFAULT_VIEW_PREFS = {
   showAge: true,
   showGender: true,
@@ -17,37 +27,40 @@ function tagMatchesInterest(tag, interest) {
   return String(tag).trim().toLowerCase() === String(interest).trim().toLowerCase();
 }
 
-export function applyDiscoveryFilters(profiles, filters = DEFAULT_DISCOVERY_FILTERS) {
+/** Pure filter logic — keep aligned with api/src/utils/discoveryFilterMatch.ts */
+export function profileMatchesDiscoveryFilters(profile, filters = DEFAULT_DISCOVERY_FILTERS) {
   const { ageMin, ageMax, genders, interests, interestMatch } = {
     ...DEFAULT_DISCOVERY_FILTERS,
     ...filters,
   };
 
-  return profiles.filter((profile) => {
-    if (ageMin != null && profile.age != null && profile.age < ageMin) return false;
-    if (ageMax != null && profile.age != null && profile.age > ageMax) return false;
+  if (ageMin != null && profile.age != null && profile.age < ageMin) return false;
+  if (ageMax != null && profile.age != null && profile.age > ageMax) return false;
 
-    if (genders.length > 0 && profile.gender && !genders.includes(profile.gender)) {
-      return false;
+  if (genders.length > 0 && profile.gender && !genders.includes(profile.gender)) {
+    return false;
+  }
+
+  if (interests.length > 0) {
+    const tags = profile.tags ?? [];
+    if (interestMatch === 'all') {
+      const hasAll = interests.every((interest) =>
+        tags.some((tag) => tagMatchesInterest(tag, interest)),
+      );
+      if (!hasAll) return false;
+    } else {
+      const hasAny = interests.some((interest) =>
+        tags.some((tag) => tagMatchesInterest(tag, interest)),
+      );
+      if (!hasAny) return false;
     }
+  }
 
-    if (interests.length > 0) {
-      const tags = profile.tags ?? [];
-      if (interestMatch === 'all') {
-        const hasAll = interests.every((interest) =>
-          tags.some((tag) => tagMatchesInterest(tag, interest)),
-        );
-        if (!hasAll) return false;
-      } else {
-        const hasAny = interests.some((interest) =>
-          tags.some((tag) => tagMatchesInterest(tag, interest)),
-        );
-        if (!hasAny) return false;
-      }
-    }
+  return true;
+}
 
-    return true;
-  });
+export function applyDiscoveryFilters(profiles, filters = DEFAULT_DISCOVERY_FILTERS) {
+  return profiles.filter((profile) => profileMatchesDiscoveryFilters(profile, filters));
 }
 
 export function maskProfileForView(profile, viewPrefs = DEFAULT_VIEW_PREFS) {

@@ -1,0 +1,7 @@
+app_identifier("com.aether.app")
+package_name("com.aether.app")
+
+# Set APPLE_TEAM_ID in CI or locally when uploading to App Store Connect.
+for_platform :ios do
+  team_id(ENV["APPLE_TEAM_ID"]) if ENV["APPLE_TEAM_ID"]
+end

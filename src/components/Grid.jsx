@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { MessageSquare, Image, ShieldAlert, X, ShieldCheck, SlidersHorizontal } from 'lucide-react';
 import useFocusTrap from '../hooks/useFocusTrap';
-import { MSG } from '../utils/userMessages';
-import { genderLabel } from '../utils/profileOptions';
+import { useTranslation } from '../i18n/index.js';
+import { genderLabelKey } from '../utils/profileOptions';
 import { isWebBrowser } from '../utils/platform';
 import WebAlbumBlockedBanner from './WebAlbumBlockedBanner';
 import DiscoveryFilterControls from './DiscoveryFilterControls';
+import ProfileSocialLinks from './ProfileSocialLinks';
 import { maskProfileForView, countActiveFilters } from '../utils/profileFilters';
 
 /**
@@ -31,6 +32,7 @@ export default function Grid({
   discoveryPrefs,
   onDiscoveryPrefsChange,
 }) {
+  const { t } = useTranslation();
   const [selectedProfile, setSelectedProfile] = useState(null);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const profileModalRef = useFocusTrap(!!selectedProfile);
@@ -143,7 +145,7 @@ export default function Grid({
               aria-expanded={filtersOpen}
             >
               <SlidersHorizontal className="icon-sm" />
-              {MSG.gridFiltersButton}
+              {t('gridFiltersButton')}
               {activeFilterCount > 0 && (
                 <span className="metadata-badge badge-sm">{activeFilterCount}</span>
               )}
@@ -156,13 +158,14 @@ export default function Grid({
       </div>
 
       {filtersOpen && onDiscoveryPrefsChange && (
-        <div className="grid-filters-panel glass-panel">
+        <div className="grid-filters-panel">
           <DiscoveryFilterControls
             discoveryFilters={discoveryPrefs.discoveryFilters}
             profileViewPrefs={discoveryPrefs.profileViewPrefs}
             onFiltersChange={(discoveryFilters) => patchDiscoveryPrefs({ discoveryFilters })}
             onViewPrefsChange={(profileViewPrefs) => patchDiscoveryPrefs({ profileViewPrefs })}
             showDisplayToggles={false}
+            showHeader={false}
           />
         </div>
       )}
@@ -191,7 +194,7 @@ export default function Grid({
         <div className="discovery-grid grid-empty-state">
           <p className="grid-empty-text">
             {filtersExcludeAll
-              ? MSG.gridFiltersEmpty
+              ? t('gridFiltersEmpty')
               : profilesError
                 ? 'Fix the connection above and retry.'
                 : 'No one nearby right now. Check back later.'}
@@ -268,13 +271,16 @@ export default function Grid({
                   {masked.age != null && (
                     <>
                       <span className="text-secondary">·</span>
-                      <span className="modal-age">{MSG.profileModalAge} {masked.age}</span>
+                      <span className="modal-age">{t('profileModalAge')} {masked.age}</span>
                     </>
                   )}
                 </div>
                 {(masked.gender || masked.role) && (
                   <p className="modal-subtitle">
-                    {[genderLabel(masked.gender), masked.role].filter(Boolean).join(' · ')}
+                    {[
+                      masked.gender ? t(genderLabelKey(masked.gender)) : null,
+                      masked.role,
+                    ].filter(Boolean).join(' · ')}
                   </p>
                 )}
               </div>
@@ -290,13 +296,15 @@ export default function Grid({
               </div>
 
               <div className="modal-bio-section">
-                <div className="modal-label">{MSG.profileModalBio}</div>
+                <div className="modal-label">{t('profileModalBio')}</div>
                 <p className="modal-bio-text">{masked.bio}</p>
               </div>
 
+              <ProfileSocialLinks socialLinks={masked.socialLinks} />
+
               {(masked.lookingFor?.length ?? 0) > 0 && (
                 <div className="modal-tags-section">
-                  <div className="modal-label">{MSG.profileModalLookingFor}</div>
+                  <div className="modal-label">{t('profileModalLookingFor')}</div>
                   <div className="modal-tags-list modal-tags-list--inline">
                     {masked.lookingFor.map((item, i) => (
                       <span key={i} className="modal-tag modal-tag--accent">{item}</span>
@@ -307,7 +315,7 @@ export default function Grid({
 
               {(masked.tags?.length ?? 0) > 0 && (
                 <div className="modal-tags-section">
-                  <div className="modal-label">{MSG.profileModalInterests}</div>
+                  <div className="modal-label">{t('profileModalInterests')}</div>
                   <div className="modal-tags-list modal-tags-list--inline">
                     {masked.tags.map((tag, i) => (
                       <span key={i} className="modal-tag">{tag}</span>

@@ -54,7 +54,7 @@ authRouter.post('/login', authRateLimit, async (req, res) => {
   }
 });
 
-authRouter.post('/oauth/google', async (req, res) => {
+authRouter.post('/oauth/google', authRateLimit, async (req, res) => {
   try {
     const { credential } = req.body ?? {};
     if (!credential) {
@@ -68,7 +68,7 @@ authRouter.post('/oauth/google', async (req, res) => {
   }
 });
 
-authRouter.post('/oauth/apple', async (req, res) => {
+authRouter.post('/oauth/apple', authRateLimit, async (req, res) => {
   try {
     const { idToken, displayName } = req.body ?? {};
     if (!idToken) {

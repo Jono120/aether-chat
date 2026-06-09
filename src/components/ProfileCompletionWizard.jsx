@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { MSG } from '../utils/userMessages';
+import { useTranslation } from '../i18n/index.js';
 
 export default function ProfileCompletionWizard({ onComplete, onSkip }) {
+  const { t } = useTranslation();
   const [username, setUsername] = useState('');
   const [bio, setBio] = useState('');
   const [discoverable, setDiscoverable] = useState(true);
@@ -14,11 +15,17 @@ export default function ProfileCompletionWizard({ onComplete, onSkip }) {
   return (
     <div className="modal-backdrop" role="dialog" aria-modal="true">
       <div className="modal-content glass-panel" style={{ maxWidth: '24rem', margin: '2rem auto' }}>
-        <h2 className="grid-section-title">Complete your profile</h2>
-        <p className="grid-section-desc">A few details help others discover you safely.</p>
+        <h2 className="grid-section-title">
+          {t('profileCompletionTitle', { defaultValue: 'Complete your profile' })}
+        </h2>
+        <p className="grid-section-desc">
+          {t('profileCompletionSubtitle', {
+            defaultValue: 'A few details help others discover you safely.',
+          })}
+        </p>
         <form className="auth-form" onSubmit={handleSubmit}>
           <label className="auth-field">
-            <span className="auth-label">Display name</span>
+            <span className="auth-label">{t('profileDisplayName')}</span>
             <input
               className="auth-input"
               value={username}
@@ -28,7 +35,7 @@ export default function ProfileCompletionWizard({ onComplete, onSkip }) {
             />
           </label>
           <label className="auth-field">
-            <span className="auth-label">{MSG.profileModalBio}</span>
+            <span className="auth-label">{t('profileModalBio')}</span>
             <textarea
               className="auth-input"
               rows={3}
@@ -43,13 +50,13 @@ export default function ProfileCompletionWizard({ onComplete, onSkip }) {
               checked={discoverable}
               onChange={(e) => setDiscoverable(e.target.checked)}
             />
-            <span className="auth-label">Show me on the discovery grid</span>
+            <span className="auth-label">{t('profileShowOnGrid')}</span>
           </label>
           <button type="submit" className="btn btn-primary" style={{ width: '100%' }}>
-            Continue
+            {t('profileCompletionContinue', { defaultValue: 'Continue' })}
           </button>
           <button type="button" className="btn btn-secondary" style={{ width: '100%' }} onClick={onSkip}>
-            Skip for now
+            {t('profileCompletionSkip', { defaultValue: 'Skip for now' })}
           </button>
         </form>
       </div>
