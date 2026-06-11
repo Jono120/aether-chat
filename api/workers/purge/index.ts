@@ -9,6 +9,7 @@ import { pool } from '../../src/db/pool.js';
 import { purgeUserAccount } from '../../src/services/account.js';
 import { purgeExpiredMedia } from '../../src/services/media.js';
 import { purgeExpiredMessages } from '../../src/services/messages.js';
+import { logger } from '../../src/utils/logger.js';
 
 const connectionString = process.env.SERVICE_BUS_CONNECTION_STRING ?? '';
 const queueName = process.env.SERVICE_BUS_DELETION_QUEUE ?? 'account-deletion';
@@ -23,14 +24,14 @@ async function processDueDeletions() {
        AND u.status = 'deletion_pending'`,
   );
   for (const row of due.rows) {
-    console.log('Purging scheduled account');
+    logger.info('Purging scheduled account');
     await purgeUserAccount(row.user_id);
   }
 }
 
 async function runServiceBusConsumer() {
   if (!connectionString) {
-    console.log('No Service Bus — running scheduled purge only');
+    logger.info('No Service Bus — running scheduled purge only');
     await processDueDeletions();
     await purgeExpiredMessages();
     await purgeExpiredMedia();
@@ -55,14 +56,18 @@ async function runServiceBusConsumer() {
       await processMessage(msg);
     },
     processError: async (args) => {
-      console.error('Service Bus error', args.error);
+      logger.error('Service Bus error', {
+        error: args.error instanceof Error ? args.error.message : String(args.error),
+      });
     },
   });
 
-  console.log(`Listening on queue ${queueName}`);
+  logger.info('Listening on deletion queue', { queue: queueName });
 }
 
 runServiceBusConsumer().catch((err) => {
-  console.error(err);
+  logger.error('Purge worker failed', {
+    error: err instanceof Error ? err.message : String(err),
+  });
   process.exit(1);
 });

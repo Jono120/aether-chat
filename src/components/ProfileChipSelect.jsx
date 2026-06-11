@@ -1,4 +1,3 @@
-import React from 'react';
 import { useTranslation } from '../i18n/index.js';
 
 export default function ProfileChipSelect({ options, value = [], onChange, ariaLabel, disabled = false }) {

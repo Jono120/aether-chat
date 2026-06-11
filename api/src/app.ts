@@ -25,7 +25,15 @@ export function createApp() {
   app.set('trust proxy', 1);
   app.use(
     helmet({
-      contentSecurityPolicy: false,
+      // JSON-only API: lock everything down; the SPA ships its own CSP
+      contentSecurityPolicy: {
+        directives: {
+          defaultSrc: ["'none'"],
+          frameAncestors: ["'none'"],
+          baseUri: ["'none'"],
+          formAction: ["'none'"],
+        },
+      },
       crossOriginEmbedderPolicy: false,
     }),
   );

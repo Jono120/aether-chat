@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Lock, Fingerprint } from 'lucide-react';
 import { useTranslation } from '../i18n/index.js';
 import {

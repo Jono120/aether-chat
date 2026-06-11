@@ -1,6 +1,6 @@
 # Aether — Design Principles
 
-Product intent and design criteria for the **Aether** privacy-first dating prototype. For component layout see [ARCHITECTURE.md](ARCHITECTURE.md); for security boundaries see [SECURITY.md](SECURITY.md).
+Product intent and design criteria for the **Aether** privacy-first prototype. For component layout see [ARCHITECTURE.md](ARCHITECTURE.md); for security boundaries see [SECURITY.md](SECURITY.md).
 
 ---
 

@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import { Download, Upload } from 'lucide-react';
 import { useToast } from '../context/ToastContext';
 import { useTranslation } from '../i18n/index.js';

@@ -138,7 +138,7 @@ variable "postgres_allowed_ip_addresses" {
 }
 
 variable "postgres_allow_azure_services" {
-  description = "Allow Azure services PostgreSQL firewall rule."
+  description = "Allow Azure services PostgreSQL firewall rule (0.0.0.0 — any Azure-hosted IP). Off by default; prefer postgres_allowed_ip_addresses or network isolation."
   type        = bool
-  default     = true
+  default     = false
 }

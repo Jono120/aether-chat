@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { User, Image, Palette, Save } from 'lucide-react';
 import { useToast } from '../context/ToastContext';
 import {
@@ -88,6 +88,9 @@ export default function UserProfile({ onProfileSaved, setStealthMode }) {
   };
 
   useEffect(() => {
+    // One-time profile hydration on mount (offline read or API fetch). The
+    // initial setState here is the intended data-loading side effect.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     loadProfile();
   }, []);
 

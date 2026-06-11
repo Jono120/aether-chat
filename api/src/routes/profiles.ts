@@ -44,7 +44,7 @@ profilesRouter.patch('/me', requireAuth, async (req, res) => {
 });
 
 profilesRouter.get('/:id', requireAuth, async (req, res) => {
-  const profile = await getProfileByEntraOid(req.params.id);
+  const profile = await getProfileByEntraOid(req.params.id, req.authUser!.id);
   if (!profile) return res.status(404).json({ error: 'Not found' });
   res.json({ profile });
 });

@@ -1,10 +1,10 @@
-import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import Navigation from './components/Navigation';
 import Grid from './components/Grid';
 import ChatRoom from './components/ChatRoom';
 import PrivacyCenter from './components/PrivacyCenter';
 import UserProfile from './components/UserProfile';
-import AuthPage from './components/AuthPage';
+import AuthPage, { EmailVerificationBanner } from './components/AuthPage';
 import DemoModeBanner from './components/DemoModeBanner';
 import { generateKeyPair, isLegacyKeyFormat } from './utils/crypto';
 import { useTranslation } from './i18n/index.js';
@@ -26,6 +26,7 @@ import {
   fetchNearbyProfiles,
   fetchMobileLinksConfig,
   isApiEnabled,
+  logoutSession,
   panicLockServer,
   registerPublicKey,
   revokeKeys,
@@ -211,6 +212,14 @@ export default function App() {
     }));
   };
 
+  const handleEmailVerified = useCallback(() => {
+    const current = loadSession();
+    if (!current?.user) return;
+    const next = { ...current, user: { ...current.user, emailVerified: true } };
+    saveSession(next);
+    setSession(next);
+  }, []);
+
   const handleAccessibilityChange = useCallback((next) => {
     setAccessibility(next);
     saveAccessibilitySettings(next);
@@ -267,7 +276,7 @@ export default function App() {
   }, [authenticated]);
 
   const handleLogout = () => {
-    clearSession();
+    logoutSession();
     setSession(null);
     clearDeviceKeys();
     setCurrentUser({ username: 'You', keys: null });
@@ -634,6 +643,9 @@ export default function App() {
     <>
     <div className="app-container">
       <DemoModeBanner />
+      {session?.user?.emailVerified === false && (
+        <EmailVerificationBanner onVerified={handleEmailVerified} />
+      )}
       {showProfileWizard && (
         <ProfileCompletionWizard
           onComplete={async (fields) => {

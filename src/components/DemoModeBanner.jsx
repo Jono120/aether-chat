@@ -1,4 +1,3 @@
-import React from 'react';
 import { isApiEnabled } from '../api/client';
 
 export default function DemoModeBanner() {

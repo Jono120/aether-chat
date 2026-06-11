@@ -1,4 +1,4 @@
-import { pool } from '../db/pool.js';
+import { pool, type Queryable } from '../db/pool.js';
 
 export async function registerPublicKey(
   userId: string,
@@ -18,15 +18,16 @@ export async function registerPublicKey(
   );
 }
 
-export async function revokeDeviceKeys(userId: string, deviceId?: string) {
+/** Accepts a pool or a checked-out client so callers can run it inside a transaction. */
+export async function revokeDeviceKeys(userId: string, deviceId?: string, db: Queryable = pool) {
   if (deviceId) {
-    await pool.query(
+    await db.query(
       `UPDATE device_public_keys SET revoked_at = now()
        WHERE user_id = $1 AND device_id = $2 AND revoked_at IS NULL`,
       [userId, deviceId],
     );
   } else {
-    await pool.query(
+    await db.query(
       `UPDATE device_public_keys SET revoked_at = now()
        WHERE user_id = $1 AND revoked_at IS NULL`,
       [userId],

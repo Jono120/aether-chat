@@ -1,4 +1,3 @@
-import React from 'react';
 import { Filter, RotateCcw } from 'lucide-react';
 import ProfileChipSelect from './ProfileChipSelect';
 import { useTranslation } from '../i18n/index.js';

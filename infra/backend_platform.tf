@@ -142,6 +142,7 @@ locals {
   api_kv_secret_refs = {
     database-url            = azurerm_key_vault_secret.database_url[0].id
     jwt-secret              = azurerm_key_vault_secret.jwt_secret[0].id
+    admin-password          = azurerm_key_vault_secret.admin_password[0].id
     storage-connection-string = azurerm_key_vault_secret.storage_connection[0].id
     signalr-connection-string = azurerm_key_vault_secret.signalr_connection[0].id
     service-bus-connection-string = azurerm_key_vault_secret.service_bus_connection[0].id
@@ -151,6 +152,7 @@ locals {
     {
       DATABASE_URL                    = "database-url"
       JWT_SECRET                      = "jwt-secret"
+      ADMIN_PASSWORD                  = "admin-password"
       AZURE_STORAGE_CONNECTION_STRING = "storage-connection-string"
       AZURE_SIGNALR_CONNECTION_STRING = "signalr-connection-string"
       SERVICE_BUS_CONNECTION_STRING   = "service-bus-connection-string"
@@ -162,6 +164,7 @@ locals {
     {
       DATABASE_URL                    = azurerm_key_vault_secret.database_url[0].value
       JWT_SECRET                      = azurerm_key_vault_secret.jwt_secret[0].value
+      ADMIN_PASSWORD                  = azurerm_key_vault_secret.admin_password[0].value
       AZURE_STORAGE_CONNECTION_STRING = azurerm_key_vault_secret.storage_connection[0].value
       AZURE_SIGNALR_CONNECTION_STRING = azurerm_key_vault_secret.signalr_connection[0].value
       SERVICE_BUS_CONNECTION_STRING   = azurerm_key_vault_secret.service_bus_connection[0].value

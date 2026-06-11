@@ -4,7 +4,7 @@ Use this list before inviting public users or running a formal penetration test.
 
 **Architecture:** See [SECURITY_ARCHITECTURE.md](SECURITY_ARCHITECTURE.md) for the layered model and environment tiers. **Operations:** [OPERATIONS.md](OPERATIONS.md).
 
-**Last reviewed:** 2026-06-09 — application source + `infra/` Terraform for Azure deployment.
+**Last reviewed:** 2026-06-11 — application source + `infra/` Terraform for Azure deployment.
 
 Legend: **Pass** = implemented in repo or Terraform; **Gap** = action required before production; **Verify** = confirm in your Azure subscription after deploy.
 
@@ -15,14 +15,30 @@ Legend: **Pass** = implemented in repo or Terraform; **Gap** = action required b
 | Item | Status | Evidence / notes |
 |------|--------|------------------|
 | `DEV_AUTH_BYPASS=false` and `NODE_ENV=production` on Container Apps | **Pass** | `infra/backend_platform.tf` sets both for API |
-| `JWT_SECRET` and `ADMIN_PASSWORD` unique in production | **Pass** | `api/src/config.ts` `validateConfig()`; random JWT in Key Vault |
-| `X-Dev-User-Id` ineffective in production | **Pass** | Only when `devAuthBypass` true (disabled in TF) |
-| Auth endpoints rate-limited (30 / 15 min per IP) | **Pass** | `api/src/routes/auth.ts` incl. `/oauth/*` |
+| `JWT_SECRET` and `ADMIN_PASSWORD` unique in production | **Pass** | `api/src/config.ts` `validateConfig()`; both random per environment in Key Vault (`infra/backend_secrets.tf`) |
+| `X-Dev-User-Id` ineffective in production, never grants admin | **Pass** | Only when `devAuthBypass` true (disabled in TF); admin comes from the DB flag only (`api/src/middleware/auth.ts`) |
+| Auth endpoints rate-limited (30 / 15 min per IP) | **Pass** | `api/src/routes/auth.ts` incl. `/oauth/*`, `/oauth/mock`, `/refresh`, `/logout` |
 | Locked account rejects existing JWT | **Pass** | `api/src/middleware/auth.ts` returns 403 |
-| API security headers (HSTS, etc.) | **Pass** | `helmet` in `api/src/app.ts` (CSP disabled — SPA owns CSP) |
-| Redis-backed distributed rate limiting | **Pass** | `api/src/middleware/rateLimit.ts` when `REDIS_URL` set |
+| API security headers (HSTS, CSP, etc.) | **Pass** | `helmet` in `api/src/app.ts` with `default-src 'none'` CSP; SPA ships its own CSP |
+| Redis-backed distributed rate limiting | **Pass** | `api/src/middleware/rateLimit.ts`; `validateConfig()` requires `REDIS_URL` in production |
 | `CORS_ORIGIN` no wildcards in production | **Pass** | `api/src/config.ts` `validateConfig()` |
-| Session JWT expiry matches policy | **Verify** | Set `JWT_EXPIRES_IN` in Container App env / Key Vault |
+| Session JWT expiry matches policy | **Pass** | Access tokens default 1h (`JWT_EXPIRES_IN`); long-lived sessions use rotating refresh tokens with server-side revocation (`POST /auth/refresh`, `POST /auth/logout`) |
+| Session JWT algorithm pinned | **Pass** | `verifySessionToken` pins `HS256` (`api/src/services/auth.ts`) |
+| Google sign-in verified locally via JWKS | **Pass** | `api/src/services/oauthProviders.ts` — RS256 against Google certs (no `tokeninfo` round-trip) |
+| Reset tokens salted per token, delivered via URL fragment | **Pass** | `api/src/services/passwordReset.ts`; token never in query string or API responses |
+| Profile lookup enforces discoverable + block checks | **Pass** | `GET /profiles/:id` scoped to viewer (`api/src/services/profiles.ts`) |
+| Sign-up writes are transactional | **Pass** | `registerLocalAccount` / `findOrCreateOAuthUser` run all inserts in a single `BEGIN/COMMIT` via the shared `withTransaction` helper (`api/src/db/pool.ts`); no orphaned `users` rows on mid-flow failure |
+| Multi-write flows share one transaction pattern | **Pass** | `withTransaction` (`api/src/db/pool.ts`) also wraps refresh rotation, reset/verify token consume, token issue (invalidate + insert), deletion schedule/cancel, panic lock, admin bootstrap, and GDPR purge — partial failure always rolls back |
+| User bootstrap consolidated, concurrency-safe | **Pass** | `provisionUser` (`api/src/services/userProvisioning.ts`) upserts with `ON CONFLICT (entra_oid)`; used by local register, OAuth first sign-in, middleware auto-provision (TOCTOU fixed), admin bootstrap, and seed; `isAdmin` can grant but never revoke |
+| Opaque tokens share one implementation | **Pass** | `api/src/utils/opaqueToken.ts` — single `<rowId>.<secret>` parse/issue/consume (scrypt-hashed secrets) behind refresh, password-reset, and email-verification tokens; tables remain separate |
+| Duplicate-key races handled | **Pass** | PG `23505` on email → friendly 409; on `oauth_identities` → log in to the winning identity (`api/src/services/auth.ts`) |
+| Auth routes never leak internal error text | **Pass** | `AuthError` (`api/src/utils/authError.ts`) for intentional messages; everything else logged server-side and replaced with a generic body (`api/src/routes/auth.ts`) |
+| Login timing oracle removed | **Pass** | `loginLocalAccount` always runs scrypt — against a dummy hash when the email is unknown (`DUMMY_PASSWORD_HASH` in `api/src/utils/password.ts`) |
+| Password length capped (scrypt DoS) | **Pass** | 256-char cap on register/login/reset/change/verify (`MAX_PASSWORD_LENGTH`); request paths use async scrypt so hashing never blocks the event loop |
+| `/auth/verify-password` rate-limited | **Pass** | `authRateLimit` applied alongside `requireAuth` (`api/src/routes/auth.ts`) — no password-guessing oracle via a stolen access token |
+| Refresh-token reuse detection | **Pass** | Replay of a revoked token with a valid secret revokes the user's entire active token family (`refreshSession` in `api/src/services/auth.ts`); rotation (new insert + old revoke) is atomic |
+| Grace-period sign-in | **Pass** | `deletion_pending` accounts may log in (to cancel deletion), aligned with `refreshSession`; locked/purged remain blocked |
+| Email verification flow | **Pass** | Migration `014`; hashed 24h tokens via URL fragment; `POST /auth/verify-email` + rate-limited `POST /auth/resend-verification`; OAuth emails count as provider-verified; soft enforcement (client banner) |
 
 ---
 
@@ -37,7 +53,7 @@ Legend: **Pass** = implemented in repo or Terraform; **Gap** = action required b
 | Secrets in Key Vault, not plain app settings | **Pass** | Staging/prod use managed identity + Key Vault secret refs (`use_key_vault_secret_refs`); dev may use inline secrets |
 | Seed never runs in production pipelines | **Pass** | `api/src/db/seed.ts` refuses `NODE_ENV=production`; do not set `ALLOW_SEED` in deploy |
 | PostgreSQL public network (prod) | **Pass** | `public_network_access_enabled = false` when network isolation enabled |
-| PostgreSQL public network (dev) | **Verify** | Dev tfvars disable Azure services rule; set `postgres_allowed_ip_addresses` before real data |
+| PostgreSQL public network (dev) | **Pass** | Azure-services firewall rule off by default (`postgres_allow_azure_services = false`); set `postgres_allowed_ip_addresses` for team access |
 | ACR `admin_enabled` | **Pass** | Disabled; Container App identity has `AcrPull` |
 | Private endpoints / VNet integration | **Pass** | `infra/modules/network/` when `enable_network_isolation = true` |
 | WAF / Front Door (prod) | **Pass** | `infra/modules/edge/` when `enable_edge_waf = true` |
@@ -52,7 +68,7 @@ Legend: **Pass** = implemented in repo or Terraform; **Gap** = action required b
 | No mock profile fallback when API enabled | **Pass** | `App.jsx` — mocks only when `!isApiEnabled()`; API failure returns empty list |
 | Device keys in IndexedDB | **Pass** | `src/utils/keyStorage.js` |
 | Demo mode banner when API unset | **Pass** | `DemoModeBanner.jsx` |
-| CSP and `frame-ancestors` | **Pass** | `public/staticwebapp.config.json` |
+| CSP and `frame-ancestors` | **Pass** | `public/staticwebapp.config.json` — no `unsafe-inline` scripts; API origins in `connect-src` |
 | Browser console avoids PII in production | **Pass** | `src/utils/safeConsole.js`, `ErrorBoundary.jsx` |
 
 ---
@@ -64,7 +80,7 @@ Legend: **Pass** = implemented in repo or Terraform; **Gap** = action required b
 | Ciphertext only on server | **Pass** | E2EE design; envelope fields in `docs/BACKEND.md` |
 | SignalR negotiate requires bearer | **Pass** | `api/src/routes/signalr.ts` + `requireAuth` |
 | Blob SAS TTL and lifecycle | **Pass** | `infra/modules/data/storage/main.tf` management policy |
-| SignalR broadcast auth header | **Verify** | REST call uses connection string; confirm Azure SignalR REST auth pattern for your SKU |
+| SignalR broadcast auth header | **Pass** | REST call uses short-lived AccessKey-signed JWT (`api/src/signalr/broadcast.ts`); hub name shared with client negotiate (`messages`) |
 
 ---
 
@@ -83,7 +99,7 @@ Legend: **Pass** = implemented in repo or Terraform; **Gap** = action required b
 
 ---
 
-## Compliance (dating app)
+## Compliance
 
 | Item | Status | Evidence / notes |
 |------|--------|------------------|

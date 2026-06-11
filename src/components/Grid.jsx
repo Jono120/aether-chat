@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { MessageSquare, Image, ShieldAlert, X, ShieldCheck, SlidersHorizontal } from 'lucide-react';
 import useFocusTrap from '../hooks/useFocusTrap';
 import { useTranslation } from '../i18n/index.js';

@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import { useEffect } from 'react';
 import { Lock, X } from 'lucide-react';
 import useFocusTrap from '../hooks/useFocusTrap';
 import { useTranslation } from '../i18n/index.js';

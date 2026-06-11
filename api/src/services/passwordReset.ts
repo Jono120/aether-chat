@@ -1,12 +1,24 @@
-import { randomBytes } from 'node:crypto';
-import { pool } from '../db/pool.js';
+import { pool, withTransaction } from '../db/pool.js';
 import { config } from '../config.js';
-import { hashPassword, hashToken, verifyPassword } from '../utils/password.js';
+import {
+  MAX_PASSWORD_LENGTH,
+  assertValidNewPassword,
+  hashPasswordAsync,
+  verifyPasswordAsync,
+} from '../utils/password.js';
+import {
+  PASSWORD_RESET_TOKEN,
+  consumeOpaqueToken,
+  issueOpaqueToken,
+  parseOpaqueToken,
+} from '../utils/opaqueToken.js';
+import { AuthError } from '../utils/authError.js';
 import { sendPasswordResetEmail } from './email.js';
+import { logger } from '../utils/logger.js';
 
 const RESET_TTL_MS = 60 * 60 * 1000;
 
-export async function requestPasswordReset(email: string): Promise<{ devToken?: string }> {
+export async function requestPasswordReset(email: string): Promise<void> {
   const normalized = email.trim().toLowerCase();
   const result = await pool.query(
     `SELECT u.id FROM local_accounts la
@@ -16,59 +28,45 @@ export async function requestPasswordReset(email: string): Promise<{ devToken?: 
   );
   const userId = result.rows[0]?.id;
   if (!userId) {
-    return {};
+    return;
   }
 
-  const token = randomBytes(32).toString('hex');
-  const tokenHash = hashToken(token);
-  const expiresAt = new Date(Date.now() + RESET_TTL_MS);
-
-  await pool.query(
-    `UPDATE password_reset_tokens SET used_at = now()
-     WHERE user_id = $1 AND used_at IS NULL`,
-    [userId],
+  // Invalidate-previous + insert-new commit as one unit; the email send
+  // stays outside the transaction.
+  const token = await withTransaction((client) =>
+    issueOpaqueToken(client, PASSWORD_RESET_TOKEN, userId, RESET_TTL_MS),
   );
 
-  await pool.query(
-    `INSERT INTO password_reset_tokens (user_id, token_hash, expires_at)
-     VALUES ($1, $2, $3)`,
-    [userId, tokenHash, expiresAt.toISOString()],
-  );
-
-  const resetUrl = `${config.appPublicUrl.replace(/\/$/, '')}/?reset=${encodeURIComponent(token)}`;
+  // Token rides in the URL fragment so it never reaches server logs or Referer headers
+  const resetUrl = `${config.appPublicUrl.replace(/\/$/, '')}/#reset=${encodeURIComponent(token)}`;
   const emailed = await sendPasswordResetEmail(normalized, resetUrl);
 
   if (config.devAuthBypass && !emailed) {
-    return { devToken: token };
+    // Dev convenience only: surfaced on the server console, never in API responses
+    console.log(`[dev-only] Password reset token: ${token}`);
+  } else if (!emailed) {
+    logger.warn('Password reset requested but email delivery unavailable');
   }
-  return {};
 }
 
 export async function resetPasswordWithToken(token: string, newPassword: string) {
-  if (newPassword.length < 8) {
-    throw new Error('Password must be at least 8 characters');
-  }
+  assertValidNewPassword(newPassword);
 
-  const tokenHash = hashToken(token);
-  const row = await pool.query(
-    `SELECT prt.user_id
-     FROM password_reset_tokens prt
-     WHERE prt.token_hash = $1
-       AND prt.used_at IS NULL
-       AND prt.expires_at > now()`,
-    [tokenHash],
-  );
-  const userId = row.rows[0]?.user_id;
-  if (!userId) throw new Error('Reset link is invalid or has expired');
+  if (!parseOpaqueToken(token)) throw new AuthError('Reset link is invalid or has expired');
+  const passwordHash = await hashPasswordAsync(newPassword);
 
-  await pool.query('UPDATE local_accounts SET password_hash = $2 WHERE user_id = $1', [
-    userId,
-    hashPassword(newPassword),
-  ]);
-  await pool.query(
-    'UPDATE password_reset_tokens SET used_at = now() WHERE user_id = $1 AND used_at IS NULL',
-    [userId],
-  );
+  // Token consume + password update commit together so a failure on the
+  // second statement can never leave a reusable token.
+  const consumed = await withTransaction(async (client) => {
+    const result = await consumeOpaqueToken(client, PASSWORD_RESET_TOKEN, token);
+    if (!result) return null;
+    await client.query('UPDATE local_accounts SET password_hash = $2 WHERE user_id = $1', [
+      result.userId,
+      passwordHash,
+    ]);
+    return result;
+  });
+  if (!consumed) throw new AuthError('Reset link is invalid or has expired');
 }
 
 export async function changePassword(
@@ -76,8 +74,10 @@ export async function changePassword(
   currentPassword: string,
   newPassword: string,
 ) {
-  if (newPassword.length < 8) {
-    throw new Error('New password must be at least 8 characters');
+  assertValidNewPassword(newPassword);
+  if (typeof currentPassword !== 'string' || currentPassword.length > MAX_PASSWORD_LENGTH) {
+    // Never feed oversized input to scrypt — its cost scales with input length
+    throw new AuthError('Current password is incorrect', 401);
   }
 
   const result = await pool.query(
@@ -86,24 +86,27 @@ export async function changePassword(
   );
   const stored = result.rows[0]?.password_hash;
   if (!stored) {
-    throw new Error('Password change is only available for email and password accounts');
+    throw new AuthError('Password change is only available for email and password accounts');
   }
-  if (!verifyPassword(currentPassword, stored)) {
-    throw new Error('Current password is incorrect');
+  if (!(await verifyPasswordAsync(currentPassword, stored))) {
+    throw new AuthError('Current password is incorrect', 401);
   }
 
   await pool.query('UPDATE local_accounts SET password_hash = $2 WHERE user_id = $1', [
     userId,
-    hashPassword(newPassword),
+    await hashPasswordAsync(newPassword),
   ]);
 }
 
 export async function verifyAccountPassword(userId: string, password: string): Promise<boolean> {
+  if (typeof password !== 'string' || password.length > MAX_PASSWORD_LENGTH) {
+    return false;
+  }
   const result = await pool.query(
     'SELECT password_hash FROM local_accounts WHERE user_id = $1',
     [userId],
   );
   const stored = result.rows[0]?.password_hash;
   if (!stored) return false;
-  return verifyPassword(password, stored);
+  return verifyPasswordAsync(password, stored);
 }

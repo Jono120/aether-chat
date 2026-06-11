@@ -1,4 +1,3 @@
-import React from 'react';
 import { CheckCircle, AlertTriangle, Info, X } from 'lucide-react';
 
 const ICONS = {

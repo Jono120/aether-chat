@@ -168,7 +168,7 @@ Feature reference for stakeholders and evaluators. For security boundaries see [
 
 ## 5-minute demo script
 
-1. **Start** — Run `npm start`; confirm title **Aether — Secure E2EE Dating Grid**.
+1. **Start** — Run `npm start`; confirm title **Aether**.
 2. **Grid** — Browse profiles; open **Julian** → read bio and distance band.
 3. **Stealth** — Toggle invisible in header; note Grid warning banner.
 4. **Chat handoff** — **Message** Julian → lands in 1:1 chat with seeded thread.

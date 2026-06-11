@@ -1,9 +1,10 @@
-import { loadSession, clearSession } from '../utils/authStorage.js';
+import { loadSession, saveSession, clearSession } from '../utils/authStorage.js';
 import { CLIENT_PLATFORM_HEADER, clientPlatformHeaderValue } from '../utils/platform.js';
 import { translateApiError } from '../i18n/apiErrors.js';
 
 const API_BASE = import.meta.env.VITE_API_URL ?? '';
-const DEV_USER_ID = import.meta.env.VITE_DEV_USER_ID ?? 'dev-user-1';
+// Dev impersonation header is opt-in (explicit VITE_DEV_USER_ID) and dev builds only.
+const DEV_USER_ID = import.meta.env.DEV ? (import.meta.env.VITE_DEV_USER_ID ?? '') : '';
 
 let onSessionExpired = null;
 
@@ -26,15 +27,18 @@ function authHeaders() {
     headers.Authorization = `Bearer ${session.token}`;
   } else if (import.meta.env.VITE_API_TOKEN) {
     headers.Authorization = `Bearer ${import.meta.env.VITE_API_TOKEN}`;
-  } else if (import.meta.env.DEV && isApiEnabled()) {
+  } else if (import.meta.env.DEV && DEV_USER_ID && isApiEnabled()) {
     headers['X-Dev-User-Id'] = DEV_USER_ID;
   }
 
   return headers;
 }
 
-async function handleResponse(res) {
-  if (res.status === 401) {
+async function handleResponse(res, { isPublic = false } = {}) {
+  // A 401 on a public (unauthenticated) request — e.g. a wrong password at
+  // login — is an ordinary failure, not an expired session: never clear the
+  // stored session or fire the global session-expired handler for those.
+  if (res.status === 401 && !isPublic) {
     clearSession();
     const err = await res.json().catch(() => ({}));
     const message = translateApiError(err.error ?? 'Session expired');
@@ -54,7 +58,7 @@ async function publicRequest(path, options = {}) {
     ...options,
     headers: { 'Content-Type': 'application/json', ...options.headers },
   });
-  return handleResponse(res);
+  return handleResponse(res, { isPublic: true });
 }
 
 export async function registerAccount(email, password, displayName) {
@@ -121,12 +125,57 @@ export async function negotiateSignalR() {
   return request('/api/v1/signalr/negotiate', { method: 'POST' });
 }
 
-async function request(path, options = {}) {
+let refreshPromise = null;
+
+/** Rotate the short-lived access token using the stored refresh token. */
+async function tryRefreshSession() {
+  const session = loadSession();
+  if (!session?.refreshToken) return null;
+  if (!refreshPromise) {
+    refreshPromise = (async () => {
+      try {
+        const res = await fetch(`${API_BASE}/api/v1/auth/refresh`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ refreshToken: session.refreshToken }),
+        });
+        if (!res.ok) return null;
+        const next = await res.json();
+        saveSession(next);
+        return next;
+      } catch {
+        return null;
+      } finally {
+        refreshPromise = null;
+      }
+    })();
+  }
+  return refreshPromise;
+}
+
+/** Revoke the refresh token server-side and clear the local session. */
+export function logoutSession() {
+  const session = loadSession();
+  clearSession();
+  if (isApiEnabled() && session?.refreshToken) {
+    fetch(`${API_BASE}/api/v1/auth/logout`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refreshToken: session.refreshToken }),
+    }).catch(() => {});
+  }
+}
+
+async function request(path, options = {}, retried = false) {
   if (!isApiEnabled()) return null;
   const res = await fetch(`${API_BASE}${path}`, {
     ...options,
     headers: { ...authHeaders(), ...options.headers },
   });
+  if (res.status === 401 && !retried && loadSession()?.refreshToken) {
+    const refreshed = await tryRefreshSession();
+    if (refreshed) return request(path, options, true);
+  }
   return handleResponse(res);
 }
 
@@ -307,6 +356,17 @@ export async function resetPassword(token, newPassword) {
     method: 'POST',
     body: JSON.stringify({ token, newPassword }),
   });
+}
+
+export async function verifyEmail(token) {
+  return publicRequest('/api/v1/auth/verify-email', {
+    method: 'POST',
+    body: JSON.stringify({ token }),
+  });
+}
+
+export async function resendVerificationEmail() {
+  return request('/api/v1/auth/resend-verification', { method: 'POST' });
 }
 
 export async function verifyAccountPassword(password) {

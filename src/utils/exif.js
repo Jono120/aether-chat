@@ -53,7 +53,7 @@ export const inspectImageMetadata = (file) => {
 
       // Generate realistic mock EXIF data if the file is a JPEG to demonstrate 
       // the stripping functionality, or read actual data if available.
-      let exifData = null;
+      let exifData;
       if (fileSignature === "image/jpeg" || file.type === "image/jpeg") {
         exifData = {
           cameraBrand: "Apple",
@@ -132,7 +132,6 @@ export const stripImageMetadata = (file) => {
       newSegments.push(new Uint8Array(buffer.slice(0, 2)));
       
       let offset = 2;
-      let strippedCount = 0;
       
       while (offset < view.byteLength) {
         // Safe check for final boundary
@@ -150,7 +149,6 @@ export const stripImageMetadata = (file) => {
           if (marker === 0xFFE1) {
             // Found APP1 (EXIF / GPS) - SKIP THIS SEGMENT
             console.log(`Aether: Stripping EXIF APP1 segment of size ${length + 2} bytes at offset ${offset}`);
-            strippedCount += (length + 2);
             offset += length + 2;
           } else {
             // Other marker, keep it

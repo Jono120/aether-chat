@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { confirmAge } from '../utils/ageGateStorage';
 import LegalLinks from './LegalLinks';
 import { useTranslation } from '../i18n/index.js';

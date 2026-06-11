@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Fingerprint } from 'lucide-react';
 import { useToast } from '../context/ToastContext';
 import { useTranslation } from '../i18n/index.js';

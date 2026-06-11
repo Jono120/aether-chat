@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { 
   Send, Shield, Lock, Trash2, ShieldAlert,
   Image, ArrowLeft, Clock, Camera, MoreVertical,
@@ -78,15 +78,18 @@ export default function ChatRoom({
   const [selectedChat, setSelectedChat] = useState(null);
   const [showAlbum, setShowAlbum] = useState(false);
   const [showWebAlbumBanner, setShowWebAlbumBanner] = useState(false);
-  const [showWireInspector, setShowWireInspector] = useState(false);
+  const [showWireInspector] = useState(false);
 
   // Message and timing states
   const [inputText, setInputText] = useState('');
   const [selfDestructSeconds, setSelfDestructSeconds] = useState(defaultSelfDestructSeconds);
-
-  useEffect(() => {
+  // Re-sync to the latest default when the prop changes (adjust state during
+  // render — React's recommended alternative to a setState-in-effect).
+  const [prevDefaultSelfDestruct, setPrevDefaultSelfDestruct] = useState(defaultSelfDestructSeconds);
+  if (prevDefaultSelfDestruct !== defaultSelfDestructSeconds) {
+    setPrevDefaultSelfDestruct(defaultSelfDestructSeconds);
     setSelfDestructSeconds(defaultSelfDestructSeconds);
-  }, [defaultSelfDestructSeconds]);
+  }
   const [lastTransmittedPacket, setLastTransmittedPacket] = useState(null);
 
   // EXIF Inspector states
@@ -254,6 +257,9 @@ export default function ChatRoom({
     }
 
     if (isApiEnabled()) {
+      // Receipts live in an external mutable store; bump the tick to reflect the
+      // just-marked read state. Intentional force-render (no React state to sync).
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setReceiptTick((t) => t + 1);
       return undefined;
     }
@@ -351,9 +357,12 @@ export default function ChatRoom({
     setupChat();
   }, [activeChatProfile, startWithAlbum, webBlocked]);
 
-  useEffect(() => {
+  // Clear the shield reason when the album closes (adjust state during render).
+  const [prevShowAlbum, setPrevShowAlbum] = useState(showAlbum);
+  if (prevShowAlbum !== showAlbum) {
+    setPrevShowAlbum(showAlbum);
     if (!showAlbum) setShieldReason(null);
-  }, [showAlbum]);
+  }
 
   // Auto scroll messages to bottom
   useEffect(() => {
@@ -487,6 +496,8 @@ export default function ChatRoom({
     }
     setSendError(null);
 
+    // Event handler (not render): reading the clock here is intentional and safe.
+    // eslint-disable-next-line react-hooks/purity
     const now = Date.now();
     const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     const chatKey = selectedChat.id;

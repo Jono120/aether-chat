@@ -2,7 +2,8 @@ import type { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import jwksClient from 'jwks-rsa';
 import { config } from '../config.js';
-import { pool } from '../db/pool.js';
+import { pool, withTransaction } from '../db/pool.js';
+import { provisionUser } from '../services/userProvisioning.js';
 import { verifySessionToken } from '../services/auth.js';
 import { logger } from '../utils/logger.js';
 
@@ -67,19 +68,15 @@ async function resolveUser(entraOid: string): Promise<ResolvedUser> {
       status: existing.rows[0].status,
     };
   }
-  const inserted = await pool.query(
-    `INSERT INTO users (entra_oid, is_admin) VALUES ($1, false)
-     RETURNING id, entra_oid, is_admin, status`,
-    [entraOid],
-  );
-  await pool.query('INSERT INTO user_preferences (user_id) VALUES ($1) ON CONFLICT DO NOTHING', [
-    inserted.rows[0].id,
-  ]);
+  // First request for this identity: provision atomically. provisionUser
+  // upserts with ON CONFLICT (entra_oid), so two concurrent first requests
+  // from the same OIDC user both succeed instead of one 500ing.
+  const user = await withTransaction((client) => provisionUser(client, { entraOid }));
   return {
-    id: inserted.rows[0].id,
-    entraOid: inserted.rows[0].entra_oid,
-    isAdmin: Boolean(inserted.rows[0].is_admin),
-    status: inserted.rows[0].status,
+    id: user.id,
+    entraOid: user.entraOid,
+    isAdmin: user.isAdmin,
+    status: user.status,
   };
 }
 
@@ -97,7 +94,8 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
       if (rejectIfLocked(user.status)) {
         return res.status(403).json({ error: 'Account locked' });
       }
-      req.authUser = { id: user.id, entraOid: user.entraOid, isAdmin: true };
+      // Dev bypass impersonation is never an admin grant; admin comes from the DB flag only
+      req.authUser = { id: user.id, entraOid: user.entraOid, isAdmin: user.isAdmin };
       return next();
     }
 

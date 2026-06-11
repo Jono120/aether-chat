@@ -1,6 +1,7 @@
 import jwt from 'jsonwebtoken';
 import jwksClient from 'jwks-rsa';
 import { config } from '../config.js';
+import { AuthError } from '../utils/authError.js';
 
 export type OAuthProfile = {
   provider: 'google' | 'apple';
@@ -17,49 +18,72 @@ const appleJwks = config.appleClientId
     })
   : null;
 
-function appleSigningKey(header: jwt.JwtHeader): Promise<string> {
+const googleJwks = config.googleClientId
+  ? jwksClient({
+      jwksUri: 'https://www.googleapis.com/oauth2/v3/certs',
+      cache: true,
+      rateLimit: true,
+    })
+  : null;
+
+function signingKey(
+  client: ReturnType<typeof jwksClient> | null,
+  header: jwt.JwtHeader,
+  provider: string,
+): Promise<string> {
   return new Promise((resolve, reject) => {
-    if (!appleJwks || !header.kid) return reject(new Error('Apple JWKS unavailable'));
-    appleJwks.getSigningKey(header.kid, (err, key) => {
-      if (err || !key) return reject(err ?? new Error('No Apple signing key'));
+    if (!client || !header.kid) return reject(new Error(`${provider} JWKS unavailable`));
+    client.getSigningKey(header.kid, (err, key) => {
+      if (err || !key) return reject(err ?? new Error(`No ${provider} signing key`));
       resolve(key.getPublicKey());
     });
   });
 }
 
+function appleSigningKey(header: jwt.JwtHeader): Promise<string> {
+  return signingKey(appleJwks, header, 'Apple');
+}
+
+/** Verifies the Google ID token locally against Google's JWKS (no tokeninfo round-trip). */
 export async function verifyGoogleCredential(credential: string): Promise<OAuthProfile> {
   if (!config.googleClientId) {
-    throw new Error('Google sign-in is not configured');
+    throw new AuthError('Google sign-in is not configured');
   }
 
-  const res = await fetch(
-    `https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(credential)}`,
-  );
-  if (!res.ok) {
-    throw new Error('Google sign-in could not be verified');
+  const decoded = jwt.decode(credential, { complete: true });
+  if (!decoded || typeof decoded === 'string' || !decoded.header) {
+    throw new AuthError('Google sign-in could not be verified', 401);
   }
 
-  const data = (await res.json()) as {
-    aud?: string;
-    sub?: string;
-    email?: string;
-    name?: string;
-    email_verified?: string;
-  };
-
-  if (data.aud !== config.googleClientId || !data.sub) {
-    throw new Error('Google sign-in could not be verified');
+  let payload: jwt.JwtPayload;
+  try {
+    const key = await signingKey(googleJwks, decoded.header, 'Google');
+    payload = jwt.verify(credential, key, {
+      algorithms: ['RS256'],
+      issuer: ['https://accounts.google.com', 'accounts.google.com'],
+      audience: config.googleClientId,
+    }) as jwt.JwtPayload;
+  } catch {
+    throw new AuthError('Google sign-in could not be verified', 401);
   }
 
-  if (data.email_verified === 'false') {
-    throw new Error('Google email is not verified');
+  const subject = typeof payload.sub === 'string' ? payload.sub : '';
+  if (!subject) {
+    throw new AuthError('Google sign-in could not be verified', 401);
   }
+
+  if (payload.email_verified === false || payload.email_verified === 'false') {
+    throw new AuthError('Google email is not verified', 401);
+  }
+
+  const email = typeof payload.email === 'string' ? payload.email.toLowerCase() : null;
+  const name = typeof payload.name === 'string' ? payload.name.trim() : '';
 
   return {
     provider: 'google',
-    subject: data.sub,
-    email: data.email?.toLowerCase() ?? null,
-    displayName: data.name?.trim() || data.email?.split('@')[0] || 'Google user',
+    subject,
+    email,
+    displayName: name || email?.split('@')[0] || 'Google user',
   };
 }
 
@@ -68,12 +92,12 @@ export async function verifyAppleIdToken(
   nameFromClient?: string,
 ): Promise<OAuthProfile> {
   if (!config.appleClientId) {
-    throw new Error('Apple sign-in is not configured');
+    throw new AuthError('Apple sign-in is not configured');
   }
 
   const decoded = jwt.decode(idToken, { complete: true });
   if (!decoded || typeof decoded === 'string' || !decoded.header) {
-    throw new Error('Invalid Apple token');
+    throw new AuthError('Invalid Apple token', 401);
   }
 
   const key = await appleSigningKey(decoded.header);

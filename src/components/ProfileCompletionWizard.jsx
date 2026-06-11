@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useTranslation } from '../i18n/index.js';
 
 export default function ProfileCompletionWizard({ onComplete, onSkip }) {

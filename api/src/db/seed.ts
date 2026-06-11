@@ -1,5 +1,6 @@
-import { pool } from './pool.js';
+import { pool, withTransaction } from './pool.js';
 import { ensureAdministratorAccount } from '../services/adminAccount.js';
+import { provisionUser } from '../services/userProvisioning.js';
 
 if (process.env.NODE_ENV === 'production') {
   console.error('Refusing to seed: NODE_ENV=production');
@@ -76,52 +77,59 @@ async function seed() {
   console.log('Administrator account ready (admin@aether.local)');
 
   for (const p of SEED_PROFILES) {
-    const user = await pool.query(
-      `INSERT INTO users (entra_oid) VALUES ($1)
-       ON CONFLICT (entra_oid) DO UPDATE SET entra_oid = EXCLUDED.entra_oid
-       RETURNING id`,
-      [p.entra_oid],
-    );
-    const userId = user.rows[0].id;
-    await pool.query(
-      `INSERT INTO profiles (user_id, display_name, bio, role_label, age, gender, fuzzed_distance_label, avatar_colors, tags, looking_for, has_secure_album)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-       ON CONFLICT (user_id) DO UPDATE SET
-         display_name = EXCLUDED.display_name,
-         fuzzed_distance_label = EXCLUDED.fuzzed_distance_label`,
-      [
-        userId,
-        p.display_name,
-        p.bio,
-        p.role_label,
-        p.age,
-        p.gender,
-        p.fuzzed_distance_label,
-        JSON.stringify(p.avatar_colors),
-        JSON.stringify(p.tags),
-        JSON.stringify(p.looking_for),
-        p.has_secure_album,
-      ],
-    );
-    await pool.query(
-      `INSERT INTO user_preferences (user_id) VALUES ($1) ON CONFLICT DO NOTHING`,
-      [userId],
-    );
+    await withTransaction(async (client) => {
+      const user = await provisionUser(client, {
+        entraOid: p.entra_oid,
+        displayName: p.display_name,
+      });
+      const userId = user.id;
 
-    const peerJwk = SEED_PEER_KEYS[p.entra_oid];
-    if (peerJwk) {
-      const deviceId = `seed-device-${p.entra_oid}`;
-      const fingerprint = `SEED:${p.entra_oid}`;
-      await pool.query(
-        `INSERT INTO device_public_keys (user_id, device_id, public_key_jwk, fingerprint)
-         VALUES ($1, $2, $3, $4)
-         ON CONFLICT (user_id, device_id) DO UPDATE SET
-           public_key_jwk = EXCLUDED.public_key_jwk,
-           fingerprint = EXCLUDED.fingerprint,
-           revoked_at = NULL`,
-        [userId, deviceId, JSON.stringify(peerJwk), fingerprint],
+      // provisionUser creates a minimal profile; overwrite it with the full
+      // demo data (re-running the seed resets the demo profiles).
+      await client.query(
+        `INSERT INTO profiles (user_id, display_name, bio, role_label, age, gender, fuzzed_distance_label, avatar_colors, tags, looking_for, has_secure_album)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+         ON CONFLICT (user_id) DO UPDATE SET
+           display_name = EXCLUDED.display_name,
+           bio = EXCLUDED.bio,
+           role_label = EXCLUDED.role_label,
+           age = EXCLUDED.age,
+           gender = EXCLUDED.gender,
+           fuzzed_distance_label = EXCLUDED.fuzzed_distance_label,
+           avatar_colors = EXCLUDED.avatar_colors,
+           tags = EXCLUDED.tags,
+           looking_for = EXCLUDED.looking_for,
+           has_secure_album = EXCLUDED.has_secure_album`,
+        [
+          userId,
+          p.display_name,
+          p.bio,
+          p.role_label,
+          p.age,
+          p.gender,
+          p.fuzzed_distance_label,
+          JSON.stringify(p.avatar_colors),
+          JSON.stringify(p.tags),
+          JSON.stringify(p.looking_for),
+          p.has_secure_album,
+        ],
       );
-    }
+
+      const peerJwk = SEED_PEER_KEYS[p.entra_oid];
+      if (peerJwk) {
+        const deviceId = `seed-device-${p.entra_oid}`;
+        const fingerprint = `SEED:${p.entra_oid}`;
+        await client.query(
+          `INSERT INTO device_public_keys (user_id, device_id, public_key_jwk, fingerprint)
+           VALUES ($1, $2, $3, $4)
+           ON CONFLICT (user_id, device_id) DO UPDATE SET
+             public_key_jwk = EXCLUDED.public_key_jwk,
+             fingerprint = EXCLUDED.fingerprint,
+             revoked_at = NULL`,
+          [userId, deviceId, JSON.stringify(peerJwk), fingerprint],
+        );
+      }
+    });
   }
   console.log('Seed complete');
   await pool.end();

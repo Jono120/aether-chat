@@ -1,5 +1,4 @@
 const SESSION_KEY = 'aether_session';
-const ADMIN_EMAIL = 'admin@aether.local';
 
 export function loadSession() {
   try {
@@ -26,20 +25,17 @@ export function isLoggedIn(apiEnabled) {
   return Boolean(session.user?.id);
 }
 
-/** Offline demo: create a local-only session without API */
+/** Offline demo: create a local-only session without API. Never admin. */
 export function createOfflineSession(email, displayName) {
   const normalized = email.trim().toLowerCase();
-  const id =
-    normalized === ADMIN_EMAIL
-      ? 'local:administrator'
-      : `local-${normalized.replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'user'}`;
+  const id = `local-${normalized.replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'user'}`;
   const session = {
     token: null,
     user: {
       id,
       email: normalized,
       displayName: displayName.trim() || normalized.split('@')[0],
-      isAdmin: normalized === ADMIN_EMAIL,
+      isAdmin: false,
     },
   };
   saveSession(session);

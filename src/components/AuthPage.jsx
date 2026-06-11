@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Shield, LogIn, UserPlus } from 'lucide-react';
 import { useToast } from '../context/ToastContext';
 import {
@@ -10,26 +10,116 @@ import {
   loginWithGoogle,
   mockOAuthLogin,
   registerAccount,
+  resendVerificationEmail,
   resetPassword,
+  verifyEmail,
 } from '../api/client';
 import { useTranslation } from '../i18n/index.js';
 import { createOfflineSession } from '../utils/authStorage';
 import LegalLinks from './LegalLinks';
 
+// Reset token travels in the URL fragment so it is never sent to servers or logged.
+function readResetTokenFromHash() {
+  const hash = window.location.hash.replace(/^#/, '');
+  if (!hash.startsWith('reset=')) return '';
+  try {
+    return decodeURIComponent(hash.slice('reset='.length));
+  } catch {
+    return '';
+  }
+}
+
+// Email verification token also rides in the URL fragment (#verify-email=...).
+function readVerifyTokenFromHash() {
+  const hash = window.location.hash.replace(/^#/, '');
+  if (!hash.startsWith('verify-email=')) return '';
+  try {
+    return decodeURIComponent(hash.slice('verify-email='.length));
+  } catch {
+    return '';
+  }
+}
+
+function clearVerifyTokenFromUrl() {
+  window.history.replaceState(
+    {},
+    '',
+    `${window.location.pathname}${window.location.search}`,
+  );
+}
+
+/**
+ * Soft-enforcement banner shown while the signed-in account's email is
+ * unverified. Also consumes a `#verify-email=` deep link opened while
+ * signed in.
+ */
+export function EmailVerificationBanner({ onVerified }) {
+  const { toast } = useToast();
+  const { t } = useTranslation();
+  const [dismissed, setDismissed] = useState(false);
+  const [sending, setSending] = useState(false);
+  const verifyAttempted = useRef(false);
+
+  useEffect(() => {
+    if (verifyAttempted.current || !isApiEnabled()) return;
+    verifyAttempted.current = true;
+    const token = readVerifyTokenFromHash();
+    if (!token) return;
+    verifyEmail(token)
+      .then(() => {
+        toast(t('authVerifySuccess'), { type: 'success' });
+        onVerified?.();
+      })
+      .catch((err) => {
+        toast(err?.message ?? t('authVerifyFailed'), { type: 'error' });
+      })
+      .finally(clearVerifyTokenFromUrl);
+  }, [onVerified, t, toast]);
+
+  if (dismissed || !isApiEnabled()) return null;
+
+  const handleResend = async () => {
+    setSending(true);
+    try {
+      const result = await resendVerificationEmail();
+      if (result?.alreadyVerified) {
+        toast(t('authVerifyAlready'), { type: 'info' });
+        onVerified?.();
+      } else {
+        toast(t('authVerifyResendSent'), { type: 'info', duration: 6000 });
+      }
+    } catch (err) {
+      toast(err?.message ?? t('authFailed'), { type: 'error' });
+    } finally {
+      setSending(false);
+    }
+  };
+
+  return (
+    <div className="email-verify-banner" role="status">
+      <span>{t('authVerifyBanner')}</span>
+      <button
+        type="button"
+        className="auth-link-btn"
+        disabled={sending}
+        onClick={handleResend}
+      >
+        {sending ? t('authPleaseWait') : t('authVerifyResend')}
+      </button>
+      <button type="button" className="auth-link-btn" onClick={() => setDismissed(true)}>
+        {t('authVerifyDismiss')}
+      </button>
+    </div>
+  );
+}
+
 export default function AuthPage({ onAuthenticated }) {
   const { toast } = useToast();
   const { t } = useTranslation();
   const googleBtnRef = useRef(null);
-  const [mode, setMode] = useState(() => {
-    const params = new URLSearchParams(window.location.search);
-    return params.get('reset') ? 'reset' : 'login';
-  });
-  const [resetToken, setResetToken] = useState(() => {
-    const params = new URLSearchParams(window.location.search);
-    return params.get('reset') ?? '';
-  });
+  const [mode, setMode] = useState(() => (readResetTokenFromHash() ? 'reset' : 'login'));
+  const [resetToken, setResetToken] = useState(() => readResetTokenFromHash());
   const [forgotSent, setForgotSent] = useState(false);
-  const [devResetToken, setDevResetToken] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [displayName, setDisplayName] = useState('');
@@ -65,6 +155,26 @@ export default function AuthPage({ onAuthenticated }) {
           appleRedirectUri: window.location.origin,
         }),
       );
+  }, []);
+
+  // Verification deep link opened while signed out: confirm the email, then
+  // leave the user on the login form.
+  const verifyAttempted = useRef(false);
+  useEffect(() => {
+    if (verifyAttempted.current || !isApiEnabled()) return;
+    verifyAttempted.current = true;
+    const token = readVerifyTokenFromHash();
+    if (!token) return;
+    verifyEmail(token)
+      .then(() => {
+        toast(t('authVerifySuccess'), { type: 'success', duration: 6000 });
+        setMode('login');
+      })
+      .catch((err) => {
+        toast(err?.message ?? t('authVerifyFailed'), { type: 'error', duration: 6000 });
+      })
+      .finally(clearVerifyTokenFromUrl);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleGoogleCredential = useCallback(
@@ -159,7 +269,6 @@ export default function AuthPage({ onAuthenticated }) {
     }
     setMode('forgot');
     setForgotSent(false);
-    setDevResetToken('');
   };
 
   const openReset = (token = '') => {
@@ -170,22 +279,14 @@ export default function AuthPage({ onAuthenticated }) {
     setMode('reset');
     if (token) {
       setResetToken(token);
-      const url = new URL(window.location.href);
-      url.searchParams.set('reset', token);
-      window.history.replaceState({}, '', url);
+      window.history.replaceState(
+        {},
+        '',
+        `${window.location.pathname}${window.location.search}#reset=${encodeURIComponent(token)}`,
+      );
     }
     setPassword('');
     setConfirmPassword('');
-  };
-
-  const copyDevResetToken = async () => {
-    if (!devResetToken) return;
-    try {
-      await navigator.clipboard.writeText(devResetToken);
-      toast(t('authForgotCopied'), { type: 'success' });
-    } catch {
-      toast(devResetToken, { type: 'info', duration: 8000 });
-    }
   };
 
   const handleForgotSubmit = async (e) => {
@@ -196,9 +297,8 @@ export default function AuthPage({ onAuthenticated }) {
     }
     setSubmitting(true);
     try {
-      const result = await forgotPassword(email.trim());
+      await forgotPassword(email.trim());
       setForgotSent(true);
-      if (result?.devResetToken) setDevResetToken(result.devResetToken);
       toast(t('authForgotSent'), { type: 'info', duration: 6000 });
     } catch (err) {
       handleAuthError(err);
@@ -341,24 +441,6 @@ export default function AuthPage({ onAuthenticated }) {
                 disabled={submitting}
               />
             </label>
-            {forgotSent && devResetToken && (
-              <div className="auth-dev-token">
-                <p>{t('authForgotDevToken')}</p>
-                <code>{devResetToken}</code>
-                <div className="auth-forgot-actions">
-                  <button type="button" className="btn btn-secondary" onClick={copyDevResetToken}>
-                    {t('authForgotCopyCode')}
-                  </button>
-                  <button
-                    type="button"
-                    className="btn btn-primary"
-                    onClick={() => openReset(devResetToken)}
-                  >
-                    {t('authForgotUseCode')}
-                  </button>
-                </div>
-              </div>
-            )}
             <button type="submit" className="btn btn-secure auth-submit" disabled={submitting}>
               {submitting
                 ? t('authPleaseWait')
@@ -369,7 +451,7 @@ export default function AuthPage({ onAuthenticated }) {
           </form>
 
           <div className="auth-forgot-actions">
-            {forgotSent && !devResetToken && (
+            {forgotSent && (
               <button type="button" className="auth-link-btn" onClick={() => openReset()}>
                 {t('authForgotUseCode')}
               </button>

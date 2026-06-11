@@ -11,7 +11,9 @@ export const config = {
     !isProduction && process.env.DEV_AUTH_BYPASS !== 'false' && process.env.DEV_AUTH_BYPASS === 'true',
   workerPurgeOnly: process.env.WORKER_PURGE_ONLY === 'true',
   jwtSecret: process.env.JWT_SECRET ?? 'aether-dev-secret-change-in-production',
-  jwtExpiresIn: process.env.JWT_EXPIRES_IN ?? '7d',
+  // Short-lived access tokens; long-lived sessions use rotating refresh tokens
+  jwtExpiresIn: process.env.JWT_EXPIRES_IN ?? '1h',
+  refreshTokenTtlDays: Number(process.env.REFRESH_TOKEN_TTL_DAYS ?? 30),
   adminEmail: process.env.ADMIN_EMAIL ?? 'admin@aether.local',
   adminPassword: process.env.ADMIN_PASSWORD ?? 'ChangeMe-Admin-2026!',
   adminEntraOid: process.env.ADMIN_ENTRA_OID ?? 'local:administrator',
@@ -82,6 +84,11 @@ export function validateConfig(): void {
 
   if (!config.corsOrigin || config.corsOrigin.includes('*')) {
     throw new Error('CORS_ORIGIN must be a single explicit origin in production (wildcards not allowed)');
+  }
+
+  if (!config.redisUrl) {
+    // In-memory rate limiting is per-instance only and ineffective behind a load balancer
+    throw new Error('REDIS_URL is required in production for distributed rate limiting');
   }
 
   try {

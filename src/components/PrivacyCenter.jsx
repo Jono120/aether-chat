@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Eye,
   Trash2,
@@ -135,18 +135,41 @@ export default function PrivacyCenter({
   const DISTANCE_STRATEGIES = getDistanceStrategies(t);
   const [activeSection, setActiveSection] = useState('discovery');
   const [sensitiveUnlocked, setSensitiveUnlocked] = useState(() => isSensitiveUnlocked());
-  const [isDeleting, setIsDeleting] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(
+    () => !!localStorage.getItem('aether_deletion_scheduled'),
+  );
   const [deletionTimer, setDeletionTimer] = useState(null);
   const [errorReportText, setErrorReportText] = useState('');
   const [errorReportIncludeContext, setErrorReportIncludeContext] = useState(true);
   const [errorReportSubmitting, setErrorReportSubmitting] = useState(false);
   const [autoErrorReport, setAutoErrorReport] = useState(() => isAutoErrorReportEnabled());
   const [encryptionTipsOpen, setEncryptionTipsOpen] = useState(false);
+  const [privateKeyRevealed, setPrivateKeyRevealed] = useState(false);
+
+  // Declared before the effects below so they can reference it without tripping
+  // the "accessed before declaration" hook rule.
+  const calculateTimeRemaining = (targetTimeStr) => {
+    const target = new Date(targetTimeStr);
+    const diff = target - new Date();
+
+    if (diff <= 0) {
+      setDeletionTimer('EXPIRED - ACCOUNT PURGED');
+      onPanicTrigger();
+    } else {
+      const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+      const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+      const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+      const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+
+      setDeletionTimer(`${days}d ${hours}h ${minutes}m ${seconds}s`);
+    }
+  };
 
   useEffect(() => {
     const deletionTimestamp = localStorage.getItem('aether_deletion_scheduled');
     if (deletionTimestamp) {
-      setIsDeleting(true);
+      // Render the countdown immediately on mount from persisted deletion state.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       calculateTimeRemaining(deletionTimestamp);
     }
     if (isApiEnabled()) {
@@ -157,6 +180,9 @@ export default function PrivacyCenter({
   useEffect(() => {
     if (activeSection !== 'diagnostics') {
       revokeSensitiveUnlock();
+      // Leaving diagnostics must lock the sensitive section: an external revoke
+      // plus a local UI reset — a legitimate effect side effect.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setSensitiveUnlocked(false);
     } else {
       setSensitiveUnlocked(isSensitiveUnlocked());
@@ -179,23 +205,6 @@ export default function PrivacyCenter({
     }
     return () => clearInterval(interval);
   }, [isDeleting]);
-
-  const calculateTimeRemaining = (targetTimeStr) => {
-    const target = new Date(targetTimeStr);
-    const diff = target - new Date();
-
-    if (diff <= 0) {
-      setDeletionTimer('EXPIRED - ACCOUNT PURGED');
-      onPanicTrigger();
-    } else {
-      const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-      const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-      const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-      const seconds = Math.floor((diff % (1000 * 60)) / 1000);
-
-      setDeletionTimer(`${days}d ${hours}h ${minutes}m ${seconds}s`);
-    }
-  };
 
   const requestAccountDeletion = async () => {
     const approved = await confirm(t('settingsDeleteConfirm'), {
@@ -758,8 +767,17 @@ export default function PrivacyCenter({
                 <span className="metadata-badge badge-warning badge-sm">
                   {t('privacyPrivateKeyBadge')}
                 </span>
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  onClick={() => setPrivateKeyRevealed(!privateKeyRevealed)}
+                >
+                  {privateKeyRevealed ? t('privacyPrivateKeyHide') : t('privacyPrivateKeyReveal')}
+                </button>
               </div>
-              <pre className="key-ring-pre key-ring-pre-private">{currentUser.keys.privateKey}</pre>
+              <pre className="key-ring-pre key-ring-pre-private">
+                {privateKeyRevealed ? currentUser.keys.privateKey : '••••••••••••••••••••••••'}
+              </pre>
             </div>
             <div className="key-fingerprint-row">
               <div>

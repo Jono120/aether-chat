@@ -3,7 +3,6 @@ import assert from 'node:assert/strict';
 import {
   countryHintFromTimeZone,
   localeForCountry,
-  localeFromNavigatorLanguage,
   normalizeLocale,
 } from './countryLocaleMap.js';
 

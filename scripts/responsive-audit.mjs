@@ -42,6 +42,8 @@ const CSS_BREAKPOINTS = [480, 540, 560, 640, 768, 900, 1024, 1200];
 async function seedSession(page) {
   await page.addInitScript((session) => {
     localStorage.setItem('aether_session', JSON.stringify(session));
+    // Dismiss the 18+ age gate so the audit can reach the app shell.
+    localStorage.setItem('aether_age_confirmed', 'true');
   }, OFFLINE_SESSION);
 }
 

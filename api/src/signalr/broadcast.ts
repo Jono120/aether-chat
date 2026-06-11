@@ -1,5 +1,10 @@
 import { config } from '../config.js';
 import { logger } from '../utils/logger.js';
+import {
+  SIGNALR_HUB,
+  createSignalRRestToken,
+  parseSignalREndpoint,
+} from './negotiate.js';
 
 /**
  * Broadcast ciphertext envelope to conversation members via Azure SignalR REST API.
@@ -14,15 +19,17 @@ export async function broadcastEnvelope(
     return { delivered: false, mode: 'polling' as const };
   }
 
-  const endpoint = parseSignalREndpoint(config.signalrConnectionString);
-  const hub = 'chat';
-  const url = `${endpoint}/api/v1/hubs/${hub}/:send?api-version=2022-11-01`;
+  // Same hub the clients negotiate against, and a short-lived JWT signed with
+  // the AccessKey (the raw connection string is never sent over the wire).
+  const endpoint = parseSignalREndpoint(config.signalrConnectionString).replace(/\/$/, '');
+  const url = `${endpoint}/api/v1/hubs/${SIGNALR_HUB}`;
+  const token = createSignalRRestToken(url);
 
   const response = await fetch(url, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      Authorization: `Bearer ${config.signalrConnectionString}`,
+      Authorization: `Bearer ${token}`,
     },
     body: JSON.stringify({
       target: 'ReceiveEnvelope',
@@ -42,10 +49,4 @@ export async function broadcastEnvelope(
   }
 
   return { delivered: true, mode: 'signalr' as const };
-}
-
-function parseSignalREndpoint(connectionString: string): string {
-  const endpointMatch = connectionString.match(/Endpoint=([^;]+)/);
-  if (!endpointMatch) throw new Error('Invalid SignalR connection string');
-  return endpointMatch[1].replace(/\/$/, '');
 }

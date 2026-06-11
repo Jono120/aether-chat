@@ -1,4 +1,3 @@
-import React from 'react';
 import { ExternalLink } from 'lucide-react';
 import { useTranslation } from '../i18n/index.js';
 import { listSocialLinksForDisplay } from '../utils/socialLinks';

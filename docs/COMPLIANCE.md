@@ -19,8 +19,9 @@ This document tracks privacy and safety controls implemented in Aether. It is no
 | Manual error report | Explicit submit in Privacy Center | User-authored description; optional allowlisted device context |
 | Automatic crash report | Opt-in toggle (default **off**) + signed in | Error name, truncated message/stack; allowlisted context only |
 | Operational API logs | None (not user-facing telemetry) | **No PII** — see [Logging policy](#logging-policy) |
-| Support alert email | N/A (operator inbox) | Report id, source, user email, description preview — only when SMTP configured |
+| Support alert email | N/A (operator inbox) | Report id, source, masked user email, truncated description preview — only when SMTP configured |
 | Password reset email | User requests reset | Email address via SMTP |
+| Email verification email | User signs up with email/password (or requests a resend) | Email address via SMTP |
 
 Users are not profiled from operational logs. Identifiers in Log Analytics are limited to opaque `requestId`, HTTP method, sanitized route templates, and status codes.
 
@@ -65,7 +66,8 @@ Retention: Log Analytics workspace **30 days** (`infra/modules/compute/container
 
 ## Data subject requests
 
-- Account deletion can be scheduled from Privacy Center (grace period in `localStorage` + API).
+- Account deletion can be scheduled from Privacy Center (grace period in `localStorage` + API). Users can still **sign in during the grace period** (`deletion_pending` status) so they can cancel the deletion; locked and purged accounts cannot.
+- **GDPR erasure (Art. 17):** when the purge runs (`purgeUserAccount` in `api/src/services/account.ts`), the following are **deleted**: local account credentials (email + password hash), OAuth identities, password reset tokens, email verification tokens, refresh tokens, device keys, profile, preferences, media metadata, blocks, read receipts, error reports, conversation memberships, and **all messages in every conversation the user participated in** (not just messages they sent). The `users` row is scrubbed in place (`entra_oid` replaced with an opaque `purged:<id>` value, `is_admin` cleared, `status = 'purged'`, `purged_at` recorded) and is retained only as an anonymized audit anchor for `deletion_requests`.
 - **GDPR export:** `GET /api/v1/account/export` returns server-held personal data (profile, preferences, ciphertext messages, media metadata). Message plaintext requires device keys or [chat backup export](../src/components/ChatBackupPanel.jsx) for decrypted history.
 
 ## Error reporting
@@ -73,13 +75,15 @@ Retention: Log Analytics workspace **30 days** (`infra/modules/compute/container
 - **Manual reports** — user-authored description; optional device context (allowlisted fields).
 - **Automatic reports** — disabled by default (`aether_auto_error_report` in browser storage). When enabled, only sent if the user is signed in and the API is reachable.
 - **Redaction** — query strings, tokens, passwords, session identifiers, and chat-related keys are stripped before storage. Free-text manual descriptions are not scanned for PII.
-- **Retention** — reports remain in PostgreSQL until deleted by operators; operational logs follow Log Analytics workspace retention and exclude report bodies.
+- **Retention** — reports remain in PostgreSQL until deleted by operators or until the submitting user's account is purged (reports are deleted as part of account erasure); operational logs follow Log Analytics workspace retention and exclude report bodies.
 
 ## Email
 
-Password reset emails are sent via SMTP when `SMTP_*` variables are configured; otherwise dev mode may return `devResetToken` for testing only.
+Password reset emails are sent via SMTP when `SMTP_*` variables are configured. Reset tokens are never returned in API responses; in dev mode without SMTP the token is printed to the server console only. Reset links carry the token in the URL **fragment** (`#reset=...`) so it is not sent to servers or recorded in logs/Referer headers.
 
-New error reports can trigger an alert to `SUPPORT_ALERT_EMAIL` (or `ADMIN_EMAIL`) when SMTP is configured. Alert bodies are for operator triage only and are not written to application logs.
+Email verification works the same way: signing up with email/password sends a verification email (24-hour token, stored only as a salted hash) with the token in the URL fragment (`#verify-email=...`). Verification is **soft-enforced** — unverified accounts see an in-app banner with a rate-limited resend option, but are not blocked. Accounts created via Google/Apple are treated as verified by the provider.
+
+New error reports can trigger an alert to `SUPPORT_ALERT_EMAIL` (or `ADMIN_EMAIL`) when SMTP is configured. Alert bodies are for operator triage only and are not written to application logs; the user email is masked (`j***@example.com`) and the description preview truncated to 120 characters — full content stays in PostgreSQL behind the admin API.
 
 ## Azure deployment (summary)
 

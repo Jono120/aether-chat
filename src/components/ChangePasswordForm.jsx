@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useToast } from '../context/ToastContext';
 import { changePassword, isApiEnabled } from '../api/client';
 import { useTranslation } from '../i18n/index.js';

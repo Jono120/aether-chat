@@ -4,6 +4,20 @@ resource "random_password" "jwt_secret" {
   special = false
 }
 
+# Local administrator password: generated per environment, stored only in Key Vault
+resource "random_password" "admin_password" {
+  count   = var.enable_backend ? 1 : 0
+  length  = 32
+  special = false
+}
+
+resource "azurerm_key_vault_secret" "admin_password" {
+  count        = var.enable_backend ? 1 : 0
+  name         = "admin-password"
+  value        = random_password.admin_password[0].result
+  key_vault_id = module.key_vault[0].id
+}
+
 resource "azurerm_key_vault_secret" "database_url" {
   count        = var.enable_backend ? 1 : 0
   name         = "database-url"

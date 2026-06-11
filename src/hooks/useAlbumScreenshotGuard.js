@@ -7,6 +7,15 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 export function useAlbumScreenshotGuard({ enabled, active, onCaptureAttempt }) {
   const [forceShield, setForceShield] = useState(false);
   const lastWarnRef = useRef(0);
+  const guardActive = enabled && active;
+
+  // Clear the shield when the guard turns off (adjust state during render —
+  // React's recommended alternative to calling setState inside an effect).
+  const [prevGuardActive, setPrevGuardActive] = useState(guardActive);
+  if (prevGuardActive !== guardActive) {
+    setPrevGuardActive(guardActive);
+    if (!guardActive && forceShield) setForceShield(false);
+  }
 
   const triggerShield = useCallback(
     (reason) => {
@@ -21,10 +30,7 @@ export function useAlbumScreenshotGuard({ enabled, active, onCaptureAttempt }) {
   );
 
   useEffect(() => {
-    if (!enabled || !active) {
-      setForceShield(false);
-      return undefined;
-    }
+    if (!guardActive) return undefined;
 
     const onKeyDown = (e) => {
       if (e.key === 'PrintScreen') {
@@ -65,7 +71,7 @@ export function useAlbumScreenshotGuard({ enabled, active, onCaptureAttempt }) {
       document.removeEventListener('copy', onCopy, true);
       document.removeEventListener('contextmenu', onContextMenu, true);
     };
-  }, [enabled, active, triggerShield]);
+  }, [guardActive, triggerShield]);
 
   return { forceShield, resetForceShield: () => setForceShield(false) };
 }

@@ -1,4 +1,4 @@
-import { pool } from '../db/pool.js';
+import { pool, type Queryable } from '../db/pool.js';
 import { getDiscoveryPreferences } from './discoveryPreferences.js';
 import { getPrivacyPreferences } from './privacyPreferences.js';
 import { buildDiscoveryFilterSql, isDiscoveryFilterActive } from './discoveryFilterSql.js';
@@ -127,20 +127,38 @@ const PROFILE_SELECT = `
   ) k ON true
 `;
 
-export async function ensureProfileForUser(userId: string, entraOid: string): Promise<void> {
-  const existing = await pool.query('SELECT 1 FROM profiles WHERE user_id = $1', [userId]);
-  if (existing.rows[0]) return;
+/**
+ * Accepts a pool or a checked-out client so callers can run it inside a
+ * transaction. When `displayName` is provided it is written whether the
+ * profile is created here or already exists.
+ */
+export async function ensureProfileForUser(
+  userId: string,
+  entraOid: string,
+  db: Queryable = pool,
+  displayName?: string,
+): Promise<void> {
+  const existing = await db.query('SELECT 1 FROM profiles WHERE user_id = $1', [userId]);
+  if (existing.rows[0]) {
+    if (displayName) {
+      await db.query(
+        `UPDATE profiles SET display_name = $2, updated_at = now() WHERE user_id = $1`,
+        [userId, displayName],
+      );
+    }
+    return;
+  }
 
-  const displayName = entraOid.startsWith('seed-')
+  const fallbackName = entraOid.startsWith('seed-')
     ? entraOid.replace('seed-', '').replace(/^\w/, (c) => c.toUpperCase())
     : 'You';
 
-  await pool.query(
+  await db.query(
     `INSERT INTO profiles (user_id, display_name, bio, role_label, age, fuzzed_distance_label, avatar_colors, tags, has_secure_album)
      VALUES ($1, $2, '', 'Say hello', NULL, 'Nearby', $3, '[]', false)`,
     [
       userId,
-      displayName,
+      displayName ?? fallbackName,
       JSON.stringify({ primary: '#7c3aed', secondary: '#db2777' }),
     ],
   );
@@ -303,8 +321,42 @@ export async function listNearbyProfiles(excludeUserId: string): Promise<NearbyP
   };
 }
 
-export async function getProfileByEntraOid(entraOid: string): Promise<ProfileDto | null> {
-  const result = await pool.query(`${PROFILE_SELECT} WHERE u.entra_oid = $1`, [entraOid]);
+/**
+ * Profile lookup as seen by a specific viewer. Enforces visibility:
+ * - own profile is always visible
+ * - blocked users (either direction) see nothing
+ * - non-discoverable or inactive profiles are only visible to existing
+ *   conversation partners
+ */
+export async function getProfileByEntraOid(
+  entraOid: string,
+  viewerUserId: string,
+): Promise<ProfileDto | null> {
+  const result = await pool.query(
+    `${PROFILE_SELECT}
+     WHERE u.entra_oid = $1
+       AND (
+         p.user_id = $2
+         OR (
+           NOT EXISTS (
+             SELECT 1 FROM user_blocks b
+             WHERE (b.blocker_user_id = $2 AND b.blocked_user_id = p.user_id)
+                OR (b.blocker_user_id = p.user_id AND b.blocked_user_id = $2)
+           )
+           AND (
+             (p.discoverable = true AND u.status = 'active')
+             OR EXISTS (
+               SELECT 1
+               FROM conversation_members cm_viewer
+               JOIN conversation_members cm_target
+                 ON cm_target.conversation_id = cm_viewer.conversation_id
+               WHERE cm_viewer.user_id = $2 AND cm_target.user_id = p.user_id
+             )
+           )
+         )
+       )`,
+    [entraOid, viewerUserId],
+  );
   if (!result.rows[0]) return null;
   return rowToProfile(result.rows[0], 0);
 }

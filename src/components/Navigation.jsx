@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Shield, Eye, EyeOff, Flame, Menu, X, LogOut } from 'lucide-react';
 import { useTranslation } from '../i18n/index.js';
 import useFocusTrap from '../hooks/useFocusTrap';
