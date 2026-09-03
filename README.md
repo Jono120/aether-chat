@@ -3,6 +3,10 @@
 **Aether** is a React app prototype: a discovery grid, Web Crypto end-to-end encrypted chat, and a privacy centre for keys, EXIF tooling, and safety controls. It runs **standalone** with mock data, or **live** against the optional [`api/`](api/) service and Azure backend.
 
 > **Disclaimer** — A demo, not production-hardened. Real X25519/AES-GCM runs on the client; the server stores **ciphertext and public keys only**. No raw GPS. See [docs/SECURITY.md](docs/SECURITY.md).
+>
+> [![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/F1F61V9XSE)
+>
+> <a href="https://www.buymeacoffee.com/jono420" target="_blank"><img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me a Coffee" style="height: 45px !important; !important;" ></a>
 
 Clone path / npm package: `optimistic-pasteur`.
 
